@@ -1,0 +1,451 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Weihnachts-Essensplaner</title>
+
+    <!-- Vue 3 -->
+    <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
+
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+
+    <!-- Google Fonts -->
+    <link
+        href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Mountains+of+Christmas:wght@700&display=swap"
+        rel="stylesheet">
+
+    <!-- Phosphor Icons -->
+    <script src="https://unpkg.com/@phosphor-icons/web"></script>
+
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontFamily: {
+                        sans: ['Inter', 'sans-serif'],
+                        festive: ['"Mountains of Christmas"', 'cursive'],
+                    },
+                    colors: {
+                        xmas: {
+                            red: '#D42426',
+                            green: '#165B33',
+                            gold: '#F8B229',
+                            cream: '#F0EAD6',
+                            dark: '#0B2818'
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+
+    <style>
+        body {
+            background-color: #F0EAD6;
+            background-image: radial-gradient(#D42426 0.5px, transparent 0.5px), radial-gradient(#165B33 0.5px, #F0EAD6 0.5px);
+            background-size: 20px 20px;
+            background-position: 0 0, 10px 10px;
+        }
+
+        .snow-card {
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(4px);
+            border-radius: 12px;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+        }
+
+        .hide-scroll::-webkit-scrollbar {
+            height: 6px;
+        }
+
+        .hide-scroll::-webkit-scrollbar-track {
+            background: transparent;
+        }
+
+        .hide-scroll::-webkit-scrollbar-thumb {
+            background-color: #165B33;
+            border-radius: 20px;
+        }
+    </style>
+</head>
+
+<body>
+
+    <div id="app" class="min-h-screen flex flex-col items-center p-4 sm:p-6">
+
+        <!-- Header -->
+        <header
+            class="w-full max-w-6xl flex justify-between items-center mb-8 bg-xmas-red text-white p-4 rounded-xl shadow-lg relative overflow-hidden">
+            <div class="absolute top-0 left-0 w-full h-2 bg-xmas-gold/50"></div>
+            <div class="z-10">
+                <h1 class="text-3xl sm:text-4xl font-festive">Das Familienfest</h1>
+                <p class="text-sm opacity-90">Weihnachtsplanung 2025</p>
+            </div>
+            <div class="z-10 flex items-center gap-3">
+                <div v-if="currentUser" class="flex flex-col items-end">
+                    <span class="text-xs uppercase tracking-wider opacity-75">Angemeldet als</span>
+                    <span class="font-bold bg-white text-xmas-red px-2 py-0.5 rounded shadow-sm">{{ currentUser
+                        }}</span>
+                </div>
+                <button v-if="currentUser" @click="logout"
+                    class="bg-xmas-dark hover:bg-black text-white p-2 rounded-full transition-colors"
+                    title="Rolle ändern">
+                    <i class="ph ph-sign-out text-xl"></i>
+                </button>
+            </div>
+            <i class="ph-fill ph-snowflake absolute -bottom-4 -right-4 text-8xl text-white opacity-20"></i>
+        </header>
+
+        <!-- Role Selection (Login) -->
+        <div v-if="!currentUser"
+            class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm">
+            <div class="snow-card w-full max-w-md p-8 text-center border-2 border-xmas-green relative overflow-hidden">
+                <div class="absolute top-0 left-0 w-full h-4 bg-repeat-x"
+                    style="background-image: repeating-linear-gradient(45deg, #D42426 0, #D42426 10px, #ffffff 10px, #ffffff 20px);">
+                </div>
+                <h2 class="text-3xl font-festive text-xmas-green mb-2 mt-4">Wer bist du?</h2>
+                <p class="text-gray-600 mb-6">Wähle deine Rolle, um zu beginnen.</p>
+                <div class="grid grid-cols-2 gap-3">
+                    <button v-for="role in roles" :key="role" @click="login(role)"
+                        class="p-4 rounded-lg border-2 border-dashed border-xmas-gold hover:border-xmas-red hover:bg-red-50 transition-all group flex flex-col items-center gap-2">
+                        <i class="ph-fill text-3xl"
+                            :class="getRoleIcon(role) + ' text-xmas-green group-hover:text-xmas-red'"></i>
+                        <span class="font-bold text-gray-700">{{ role }}</span>
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Main Planner Board -->
+        <main v-else class="w-full max-w-7xl overflow-hidden flex flex-col gap-6">
+
+            <!-- Legend -->
+            <div
+                class="flex flex-wrap gap-4 items-center justify-center text-sm text-gray-700 bg-white/80 p-3 rounded-full shadow-sm w-fit mx-auto backdrop-blur">
+                <div class="flex items-center gap-1.5"><span class="w-3 h-3 rounded-full bg-xmas-green"></span>
+                    Genehmigt
+                </div>
+                <div class="flex items-center gap-1.5"><span class="w-3 h-3 rounded-full bg-xmas-gold"></span> Favorit
+                </div>
+                <div class="flex items-center gap-1.5"><span class="w-3 h-3 rounded-full bg-gray-300"></span> Vorschlag
+                </div>
+                <div class="h-4 w-px bg-gray-300 mx-2"></div>
+                <span class="italic text-xmas-red">"Nur der Organisator kann ein Gericht festlegen!"</span>
+            </div>
+
+            <!-- Scrollable Grid -->
+            <div class="overflow-x-auto hide-scroll pb-6">
+                <div class="flex gap-4 min-w-max px-2">
+
+                    <!-- Day Column -->
+                    <div v-for="day in days" :key="day.date" class="w-72 sm:w-80 flex flex-col gap-3">
+                        <div class="snow-card p-3 text-center border-t-4 border-xmas-red sticky top-0 z-10">
+                            <h3 class="font-festive text-2xl text-gray-800">{{ formatDate(day.date) }}</h3>
+                            <p class="text-xs text-gray-500 uppercase tracking-widest">{{ day.name }}</p>
+                        </div>
+
+                        <div v-for="type in mealTypes" :key="type" class="flex flex-col h-full">
+                            <div
+                                class="snow-card p-4 flex flex-col gap-3 relative min-h-[160px] h-full transition-all hover:shadow-md">
+
+                                <!-- Slot Header -->
+                                <div class="flex justify-between items-center border-b border-gray-100 pb-2">
+                                    <span class="text-xs font-bold text-gray-400 uppercase">{{ type }}</span>
+                                    <i v-if="isSignatureDish(day.date, type)" class="ph-fill ph-lock-key text-xmas-gold"
+                                        title="Tradition!"></i>
+                                </div>
+
+                                <!-- Signature Dish -->
+                                <div v-if="isSignatureDish(day.date, type)"
+                                    class="flex-1 flex flex-col items-center justify-center text-center p-2 bg-xmas-red/5 rounded-lg border border-xmas-red/20">
+                                    <i class="ph-fill ph-cooking-pot text-3xl text-xmas-red mb-2"></i>
+                                    <h4 class="font-festive text-xl text-xmas-dark">Traditionsgericht</h4>
+                                    <p class="text-sm font-medium text-gray-700">Königsberger Klopse</p>
+                                </div>
+
+                                <!-- Proposals -->
+                                <div v-else class="flex flex-col gap-3 flex-1">
+                                    <div v-if="getProposals(day.date, type).length > 0" class="flex flex-col gap-2">
+                                        <div v-for="prop in getProposals(day.date, type)" :key="prop.id"
+                                            class="p-2 rounded border transition-colors relative group"
+                                            :class="getProposalClass(prop, day.date, type)">
+
+                                            <i v-if="isLeading(prop, day.date, type)"
+                                                class="ph-fill ph-crown-simple absolute -top-2 -right-2 text-xmas-gold text-xl drop-shadow-sm bg-white rounded-full p-0.5"></i>
+
+                                            <div class="flex justify-between items-start">
+                                                <div>
+                                                    <p class="font-bold text-gray-800 leading-tight">{{ prop.name }}</p>
+                                                    <p class="text-xs text-gray-500 mt-0.5">von {{ prop.proposer }}</p>
+                                                </div>
+                                                <div class="text-center min-w-[30px]">
+                                                    <span class="text-sm font-bold block"
+                                                        :class="hasVotedFor(prop) ? 'text-xmas-red' : 'text-gray-400'">{{
+                                                        (prop.votes || []).length }}</span>
+                                                </div>
+                                            </div>
+
+                                            <button @click="toggleVote(day.date, type, prop)"
+                                                class="w-full mt-2 text-xs py-1 rounded flex items-center justify-center gap-1 transition-colors"
+                                                :class="hasVotedFor(prop) ? 'bg-xmas-red text-white' : 'bg-gray-100 hover:bg-gray-200 text-gray-600'">
+                                                <i class="ph"
+                                                    :class="hasVotedFor(prop) ? 'ph-heart-fill' : 'ph-heart'"></i>
+                                                {{ hasVotedFor(prop) ? 'Gewählt' : 'Wählen' }}
+                                            </button>
+                                        </div>
+                                    </div>
+
+                                    <div v-else class="flex-1 flex items-center justify-center text-center opacity-40">
+                                        <p class="text-xs italic">Noch keine Pläne.</p>
+                                    </div>
+
+                                    <button v-if="!showForm[day.date + type]" @click="openForm(day.date, type)"
+                                        class="mt-auto w-full py-2 border-2 border-dashed border-gray-200 rounded-lg text-gray-400 text-sm hover:border-xmas-green hover:text-xmas-green transition-all flex items-center justify-center gap-1">
+                                        <i class="ph-bold ph-plus"></i> Vorschlagen
+                                    </button>
+
+                                    <div v-if="showForm[day.date + type]"
+                                        class="mt-auto bg-gray-50 p-2 rounded-lg border border-gray-200 animate-fade-in">
+                                        <input v-model="newProposalText" placeholder="Gericht Name..."
+                                            class="w-full text-sm p-1.5 rounded border border-gray-300 mb-2 focus:border-xmas-green focus:ring-1 focus:ring-xmas-green outline-none">
+                                        <div class="flex gap-2">
+                                            <button @click="submitProposal(day.date, type)"
+                                                class="flex-1 bg-xmas-green text-white text-xs py-1.5 rounded hover:bg-green-800">Hinzufügen</button>
+                                            <button @click="closeForm(day.date, type)"
+                                                class="bg-gray-200 text-gray-600 text-xs px-2 rounded hover:bg-gray-300">✕</button>
+                                        </div>
+                                    </div>
+                                </div>
+
+                            </div>
+                        </div>
+                    </div>
+
+                </div>
+            </div>
+
+        </main>
+
+        <!-- Sync Footer -->
+        <footer class="mt-auto py-6 w-full max-w-6xl flex justify-between items-center text-sm font-festive text-xl">
+            <div class="flex items-center gap-2 text-gray-500">
+                <div class="w-2 h-2 rounded-full" :class="{
+                    'bg-green-500': syncStatus === 'saved',
+                    'bg-yellow-400 animate-pulse': syncStatus === 'syncing',
+                    'bg-red-500': syncStatus === 'error'
+                }"></div>
+                <span class="font-sans text-xs uppercase tracking-wider font-bold">
+                    {{ syncMessage }}
+                </span>
+            </div>
+            <p class="text-xmas-dark/50">Gemacht mit 🎄 für die Familie</p>
+        </footer>
+
+    </div>
+
+    <script type="module">
+        const { createApp, ref, computed, onMounted, watch } = Vue;
+
+        createApp({
+            setup() {
+                // -- State --
+                const currentUser = ref(null);
+                const mealSlots = ref({});
+                const newProposalText = ref("");
+                const showForm = ref({});
+
+                // Sync State
+                const syncStatus = ref('saved'); // 'saved', 'syncing', 'error'
+                const syncMessage = ref('Alle Änderungen gespeichert');
+                const isFirstLoad = ref(true);
+
+                const roles = ['Organisator', 'Eltern', 'Hamburg', 'Konstanz'];
+                const mealTypes = ['Frühstück', 'Mittagessen', 'Abendessen'];
+                const days = [
+                    { date: '2025-12-23', name: 'Anreisetag' },
+                    { date: '2025-12-24', name: 'Heiligabend' },
+                    { date: '2025-12-25', name: '1. Weihnachtstag' },
+                    { date: '2025-12-26', name: '2. Weihnachtstag' },
+                    { date: '2025-12-27', name: 'Abreisetag' }
+                ];
+
+                // -- API Sync Logic --
+                const API_ENDPOINT = '/api/data';
+                let saveTimeout = null;
+
+                const fetchData = async () => {
+                    // If we are currently typing/saving, don't fetch to avoid jitter
+                    if (syncStatus.value === 'syncing' && !isFirstLoad.value) return;
+
+                    try {
+                        const res = await fetch(API_ENDPOINT);
+                        if (!res.ok) throw new Error('Network error');
+                        const data = await res.json();
+
+                        // Simple deep compare could go here, but for now we just replace
+                        // Only replace if structure differs to avoid UI resets
+                        if (JSON.stringify(data) !== JSON.stringify(mealSlots.value)) {
+                            mealSlots.value = data;
+                            if (isFirstLoad.value) {
+                                console.log("Initial data loaded");
+                                isFirstLoad.value = false;
+                            }
+                        }
+                    } catch (e) {
+                        console.log("Polling error (offline?)", e);
+                    }
+                };
+
+                const saveData = async () => {
+                    syncStatus.value = 'syncing';
+                    syncMessage.value = 'Synchronisiere mit Cloud...';
+
+                    try {
+                        const res = await fetch(API_ENDPOINT, {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify(mealSlots.value)
+                        });
+
+                        if (!res.ok) throw new Error('Save failed');
+
+                        syncStatus.value = 'saved';
+                        syncMessage.value = 'Alle Änderungen gespeichert';
+                    } catch (e) {
+                        console.error(e);
+                        syncStatus.value = 'error';
+                        syncMessage.value = 'Sync Fehler - Erneuter Versuch...';
+                    }
+                };
+
+                const debouncedSave = () => {
+                    if (isFirstLoad.value) return; // Don't save on initial empty state
+
+                    syncStatus.value = 'syncing';
+                    syncMessage.value = 'Warte auf Speichern...';
+
+                    if (saveTimeout) clearTimeout(saveTimeout);
+
+                    // Debounce for 2 seconds
+                    saveTimeout = setTimeout(saveData, 2000);
+                };
+
+                // -- Initialization --
+                onMounted(() => {
+                    const savedRole = localStorage.getItem('christmas_role');
+                    if (savedRole && roles.includes(savedRole)) {
+                        currentUser.value = savedRole;
+                    }
+
+                    // Initial Fetch
+                    fetchData();
+
+                    // Start Polling (every 5 seconds) to get family updates
+                    setInterval(fetchData, 5000);
+                });
+
+                // -- Watcher for Auto-Save --
+                watch(mealSlots, () => {
+                    debouncedSave();
+                }, { deep: true });
+
+                // -- Helpers & Logic (Same as before) --
+                const getSlotKey = (date, type) => `${date}_${type.toLowerCase()}`;
+                const isSignatureDish = (date, type) => date === '2025-12-24' && type === 'Abendessen';
+                const formatDate = (dateStr) => new Date(dateStr).toLocaleDateString('de-DE', { day: 'numeric', month: 'short' });
+
+                const getRoleIcon = (role) => {
+                    const map = { 'Organisator': 'ph-clipboard-text', 'Eltern': 'ph-house-line', 'Hamburg': 'ph-anchor', 'Konstanz': 'ph-waves' };
+                    return map[role] || 'ph-user';
+                };
+
+                const getProposals = (date, type) => {
+                    const key = getSlotKey(date, type);
+                    return [...(mealSlots.value[key]?.proposals || [])].sort((a, b) => (b.votes?.length || 0) - (a.votes?.length || 0));
+                };
+
+                const isLeading = (proposal, date, type) => {
+                    const props = getProposals(date, type);
+                    if (!props.length) return false;
+                    const max = (props[0].votes || []).length;
+                    return max > 0 && (proposal.votes || []).length === max;
+                };
+
+                const getProposalClass = (proposal, date, type) => isLeading(proposal, date, type) ? 'bg-xmas-gold/10 border-xmas-gold' : 'bg-white border-gray-200 hover:border-gray-300';
+                const hasVotedFor = (prop) => (prop.votes || []).includes(currentUser.value);
+
+                // -- Actions --
+                const login = (role) => {
+                    currentUser.value = role;
+                    localStorage.setItem('christmas_role', role);
+                };
+                const logout = () => {
+                    currentUser.value = null;
+                    localStorage.removeItem('christmas_role');
+                };
+                const openForm = (date, type) => {
+                    showForm.value = { [date + type]: true };
+                    newProposalText.value = "";
+                };
+                const closeForm = (date, type) => { showForm.value[date + type] = false; };
+
+                const submitProposal = (date, type) => {
+                    if (!newProposalText.value.trim() || !currentUser.value) return;
+                    const key = getSlotKey(date, type);
+                    if (!mealSlots.value[key]) mealSlots.value[key] = { date, type, proposals: [] };
+
+                    mealSlots.value[key].proposals.push({
+                        id: crypto.randomUUID(),
+                        name: newProposalText.value.trim(),
+                        proposer: currentUser.value,
+                        votes: [currentUser.value]
+                    });
+                    closeForm(date, type);
+                };
+
+                const toggleVote = (date, type, proposal) => {
+                    if (!currentUser.value) return;
+                    const key = getSlotKey(date, type);
+                    const slot = mealSlots.value[key];
+                    const target = slot?.proposals.find(p => p.id === proposal.id);
+                    if (!target) return;
+
+                    if (!target.votes) target.votes = [];
+                    if (target.votes.includes(currentUser.value)) target.votes = target.votes.filter(v => v !== currentUser.value);
+                    else target.votes.push(currentUser.value);
+                };
+
+                return {
+                    currentUser, roles, days, mealTypes, login, logout,
+                    getRoleIcon, formatDate, isSignatureDish, getProposals, hasVotedFor, isLeading, getProposalClass,
+                    showForm, newProposalText, openForm, closeForm, submitProposal, toggleVote,
+                    syncStatus, syncMessage
+                };
+            }
+        }).mount('#app');
+    </script>
+
+    <style>
+        @keyframes fadeIn {
+            from {
+                opacity: 0;
+                transform: translateY(5px);
+            }
+
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .animate-fade-in {
+            animation: fadeIn 0.2s ease-out;
+        }
+    </style>
+
+</body>
+
+</html>
