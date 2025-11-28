@@ -261,32 +261,11 @@
                     <h2 class="font-festive text-3xl text-gray-800">Einkaufsliste</h2>
                 </div>
                 <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
-                    <div v-for="(item, index) in groceryList" :key="index"
-                        class="flex items-center gap-2 p-2 bg-white rounded border border-gray-100 shadow-sm group">
+                    <div v-for="(item, index) in mergedGroceryList" :key="index"
+                        class="flex items-center gap-2 p-2 bg-white rounded border border-gray-100 shadow-sm">
                         <input type="checkbox"
                             class="w-4 h-4 text-xmas-green rounded focus:ring-xmas-green accent-xmas-green shrink-0">
-                        <input v-if="editingGroceryIndex === index" v-model="editingGroceryText"
-                            @keyup.enter="saveGroceryEdit(index)" @keyup.esc="cancelGroceryEdit"
-                            class="flex-1 text-sm p-1 border border-xmas-gold rounded focus:outline-none focus:ring-1 focus:ring-xmas-gold">
-                        <span v-else class="flex-1 text-gray-700 text-sm">{{ item }}</span>
-                        <div class="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                            <button v-if="editingGroceryIndex !== index" @click="startEditGrocery(index)"
-                                class="text-gray-400 hover:text-xmas-gold transition-colors p-1" title="Bearbeiten">
-                                <i class="ph-bold ph-pencil-simple text-sm"></i>
-                            </button>
-                            <button v-if="editingGroceryIndex === index" @click="saveGroceryEdit(index)"
-                                class="text-xmas-green hover:text-green-700 transition-colors p-1" title="Speichern">
-                                <i class="ph-bold ph-check text-sm"></i>
-                            </button>
-                            <button v-if="editingGroceryIndex === index" @click="cancelGroceryEdit"
-                                class="text-gray-400 hover:text-gray-600 transition-colors p-1" title="Abbrechen">
-                                <i class="ph-bold ph-x text-sm"></i>
-                            </button>
-                            <button @click="removeGroceryItem(index)"
-                                class="text-gray-400 hover:text-red-500 transition-colors p-1" title="Löschen">
-                                <i class="ph-bold ph-trash text-sm"></i>
-                            </button>
-                        </div>
+                        <span class="flex-1 text-gray-700 text-sm">{{ item }}</span>
                     </div>
                     <!-- Add new item -->
                     <div
@@ -360,7 +339,8 @@
                                     {{ ing }}
                                 </li>
                                 <li v-if="(previewData.ingredients || []).length > 5"
-                                    class="text-xs text-gray-400 italic">+ {{ previewData.ingredients.length - 5 }}
+                                    class="text-xs text-gray-400 italic">+
+                                    {{ previewData.ingredients.length - 5 }}
                                     weitere...</li>
                             </ul>
                         </div>
@@ -990,6 +970,52 @@
                     return date.toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' });
                 };
 
+                // -- Smart Grocery List Merging --
+
+                const parseIngredient = (ingredient) => {
+                    // Try to extract quantity and unit from ingredient string
+                    // Patterns: "500g Mehl", "2 Zwiebeln", "1 EL Öl", "Salz"
+                    const match = ingredient.match(/^([\d.,]+)\s*([a-zA-ZäöüÄÖÜß]*)?\s+(.+)$/);
+                    if (match) {
+                        return {
+                            quantity: parseFloat(match[1].replace(',', '.')),
+                            unit: match[2] || '',
+                            name: match[3].trim()
+                        };
+                    }
+                    // No quantity found, treat as single item
+                    return { quantity: null, unit: '', name: ingredient.trim() };
+                };
+
+                const mergedGroceryList = computed(() => {
+                    const merged = {};
+
+                    groceryList.value.forEach(item => {
+                        const parsed = parseIngredient(item);
+                        const key = `${parsed.name.toLowerCase()}|${parsed.unit.toLowerCase()}`;
+
+                        if (merged[key]) {
+                            // Same ingredient with same unit - add quantities
+                            if (parsed.quantity !== null && merged[key].quantity !== null) {
+                                merged[key].quantity += parsed.quantity;
+                            } else if (parsed.quantity !== null) {
+                                merged[key].quantity = parsed.quantity;
+                            }
+                        } else {
+                            merged[key] = { ...parsed };
+                        }
+                    });
+
+                    // Convert back to display strings
+                    return Object.values(merged).map(item => {
+                        if (item.quantity !== null) {
+                            const qty = item.quantity % 1 === 0 ? item.quantity : item.quantity.toFixed(1);
+                            return `${qty}${item.unit ? item.unit : ''} ${item.name}`;
+                        }
+                        return item.name;
+                    }).sort();
+                });
+
                 return {
                     currentUser, roles, days, mealTypes, login, logout,
                     getRoleIcon, formatDate, isSignatureDish, getProposals, hasVotedFor, isLeading, getProposalClass,
@@ -1000,7 +1026,7 @@
                     previewData, isLoadingPreview,
                     editingGroceryIndex, editingGroceryText, newGroceryItem,
                     startEditGrocery, saveGroceryEdit, cancelGroceryEdit, removeGroceryItem, addGroceryItem,
-                    activityLog, showActivityLog, formatLogTime
+                    activityLog, showActivityLog, formatLogTime, mergedGroceryList
                 };
             }
         }).mount('#app');
