@@ -1,5 +1,6 @@
 import os
 import json
+import urllib.parse
 from flask import Flask, request, jsonify, send_from_directory
 from google.cloud import storage
 import logging
@@ -259,20 +260,11 @@ def get_recipe_info():
         model = GenerativeModel("gemini-2.5-flash")
         prompt = f"""
         For the dish "{dish_name}", please provide:
-        1. A REAL, WORKING URL to an authentic recipe from a popular German recipe website.
-        2. A list of main ingredients needed for a grocery list (in German), calculated for 10 people.
-        3. A brief summary of cooking instructions (3-5 steps) in German.
+        1. A list of main ingredients needed for a grocery list (in German), calculated for 10 people.
+        2. A brief summary of cooking instructions (3-5 steps) in German.
         
         Return ONLY valid JSON in this format:
         {{
-            "url": "https://www.chefkoch.de/rezepte/...",
-            "ingredients": ["Ingredient 1", "Ingredient 2"],
-            "instructions": ["Step 1...", "Step 2..."]
-        }}
-        
-        If no real recipe URL can be found, use null for url but still estimate ingredients:
-        {{
-            "url": null,
             "ingredients": ["Ingredient 1", "Ingredient 2"],
             "instructions": ["Step 1...", "Step 2..."]
         }}
@@ -280,6 +272,10 @@ def get_recipe_info():
         response = model.generate_content(prompt)
         text = response.text.replace('```json', '').replace('```', '').strip()
         result = json.loads(text)
+        
+        # Generate a search URL (guaranteed to work)
+        encoded_name = urllib.parse.quote(dish_name)
+        result['url'] = f"https://www.chefkoch.de/rs/s0/{encoded_name}/Rezepte.html"
         
         # Cache the result
         recipe_cache[cache_key] = result
