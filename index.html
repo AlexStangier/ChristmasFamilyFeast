@@ -871,12 +871,20 @@
 
                     // Add ingredients to grocery list
                     if (proposal.ingredients && proposal.ingredients.length > 0) {
-                        // Avoid duplicates
-                        const newItems = proposal.ingredients.filter(i => !groceryList.value.includes(i));
+                        // Avoid duplicates (simple check)
+                        const existingStrings = groceryList.value.map(g => typeof g === 'string' ? g : g.text);
+                        const newItems = proposal.ingredients.filter(i => !existingStrings.includes(i));
                         groceryList.value.push(...newItems);
                     } else {
-                        // If still no ingredients, add placeholder
-                        groceryList.value.push(`${proposal.name} (Zutaten prüfen)`);
+                        // If still no ingredients, add placeholder object
+                        groceryList.value.push({
+                            text: `${proposal.name} (Zutaten prüfen)`,
+                            isPlaceholder: true,
+                            proposalId: proposal.id,
+                            dishName: proposal.name,
+                            date: date,
+                            type: type
+                        });
                     }
 
                     logActivity('approve', `hat "${proposal.name}" genehmigt`);
@@ -890,13 +898,20 @@
                         const proposal = mealSlots.value[key].proposals.find(p => p.id === proposalId);
 
                         // Remove ingredients from grocery list if approved
-                        if (proposal && proposal.approved && proposal.ingredients) {
-                            proposal.ingredients.forEach(ingredient => {
-                                const index = groceryList.value.indexOf(ingredient);
-                                if (index > -1) {
-                                    groceryList.value.splice(index, 1);
-                                }
-                            });
+                        if (proposal && proposal.approved) {
+                             // Remove strict ingredients
+                            if (proposal.ingredients) {
+                                proposal.ingredients.forEach(ingredient => {
+                                    const index = groceryList.value.findIndex(g => {
+                                        const txt = typeof g === 'string' ? g : g.text;
+                                        return txt === ingredient;
+                                    });
+                                    if (index > -1) groceryList.value.splice(index, 1);
+                                });
+                            }
+                            // Remove placeholders
+                            const placeholderIndex = groceryList.value.findIndex(g => typeof g === 'object' && g.proposalId === proposalId);
+                            if (placeholderIndex > -1) groceryList.value.splice(placeholderIndex, 1);
                         }
 
                         if (proposal) {
@@ -1185,13 +1200,23 @@
 
                 const getMergedItems = () => {
                     const merged = {};
+                    const placeholders = [];
 
                     groceryList.value.forEach(item => {
-                        const parsed = parseIngredient(item);
+                        // Handle Placeholder Objects
+                        if (typeof item === 'object' && item.isPlaceholder) {
+                            placeholders.push(item);
+                            return;
+                        }
+
+                        // Handle Strings (and potentially other objects if we expand)
+                        const text = typeof item === 'string' ? item : item.text;
+                        if (!text) return;
+
+                        const parsed = parseIngredient(text);
                         const key = `${parsed.name.toLowerCase()}|${parsed.unit.toLowerCase()}`;
 
                         if (merged[key]) {
-                            // Same ingredient with same unit - add quantities
                             if (parsed.quantity !== null && merged[key].quantity !== null) {
                                 merged[key].quantity += parsed.quantity;
                             } else if (parsed.quantity !== null) {
@@ -1201,22 +1226,37 @@
                             merged[key] = { ...parsed };
                         }
                     });
-                    return Object.values(merged);
-                };
 
-                const mergedGroceryList = computed(() => {
-                    return getMergedItems().map(item => {
+                    // Convert merged ingredients to rich objects
+                    const ingredients = Object.values(merged).map(item => {
+                        let text;
                         if (item.quantity !== null) {
                             const qty = item.quantity % 1 === 0 ? item.quantity : item.quantity.toFixed(1);
-                            return `${qty}${item.unit ? item.unit : ''} ${item.name}`;
+                            text = `${qty}${item.unit ? item.unit : ''} ${item.name}`;
+                        } else {
+                            text = item.name;
                         }
-                        return item.name;
-                    }).sort();
-                });
+                        // Return unified structure
+                        return { 
+                            text, 
+                            isPlaceholder: false, 
+                            name: item.name, 
+                            quantity: item.quantity, 
+                            unit: item.unit 
+                        };
+                    });
+
+                    // Combine and Sort
+                    return [...placeholders, ...ingredients].sort((a, b) => a.text.localeCompare(b.text));
+                };
+
+                const mergedGroceryList = computed(() => getMergedItems());
 
                 const openExportModal = () => {
                     const items = getMergedItems().sort((a, b) => a.name.localeCompare(b.name));
                     exportText.value = items.map(item => {
+                        if (item.isPlaceholder) return item.text;
+                        
                         if (item.quantity !== null) {
                             const qty = item.quantity % 1 === 0 ? item.quantity : item.quantity.toFixed(1);
                             return `${item.name}: ${qty}${item.unit ? item.unit : ''}`;
@@ -1224,6 +1264,56 @@
                         return item.name;
                     }).join('\n');
                     showExportModal.value = true;
+                };
+
+                const loadingIngredientsFor = ref(null); // track proposalId being loaded
+
+                const retryLoadingIngredients = async (item) => {
+                    if (!item.proposalId) return;
+                    loadingIngredientsFor.value = item.proposalId;
+
+                    // Find index in raw list
+                    const rawIndex = groceryList.value.findIndex(g => typeof g === 'object' && g.proposalId === item.proposalId);
+                    
+                    try {
+                        const res = await fetch('/api/ai/recipe', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ dish_name: item.dishName })
+                        });
+                        const data = await res.json();
+                        
+                        if (data.ingredients && data.ingredients.length > 0) {
+                            // Update Proposal
+                            const slotKey = getSlotKey(item.date, item.type);
+                            const slot = mealSlots.value[slotKey];
+                            if (slot) {
+                                const prop = slot.proposals.find(p => p.id === item.proposalId);
+                                if (prop) {
+                                    prop.ingredients = data.ingredients;
+                                    prop.instructions = data.instructions;
+                                    prop.recipeUrl = data.url;
+                                }
+                            }
+                            
+                            // Remove placeholder
+                            if (rawIndex > -1) groceryList.value.splice(rawIndex, 1);
+                            
+                            // Add new ingredients
+                            const existingStrings = groceryList.value.map(g => typeof g === 'string' ? g : g.text);
+                            const newItems = data.ingredients.filter(i => !existingStrings.includes(i));
+                            groceryList.value.push(...newItems);
+                            
+                            logActivity('edit', `hat Zutaten für "${item.dishName}" nachgeladen`);
+                        } else {
+                            alert("Leider wurden keine Zutaten gefunden.");
+                        }
+                    } catch (e) {
+                        console.error(e);
+                        alert("Fehler beim Laden der Zutaten.");
+                    } finally {
+                        loadingIngredientsFor.value = null;
+                    }
                 };
 
                 return {
