@@ -230,8 +230,8 @@
                                                         title="Löschen">
                                                         <i class="ph-bold ph-trash text-sm"></i>
                                                     </button>
-                                                    <button v-if="type === 'Dessert' && !slotIsApproved(day.date, type)"
-                                                        @click="startCopyMode(day.date, prop)"
+                                                    <button v-if="!slotIsApproved(day.date, type)"
+                                                        @click="startCopyMode(day.date, type, prop)"
                                                         class="opacity-0 group-hover:opacity-100 transition-opacity text-gray-400 hover:text-xmas-gold p-1"
                                                         title="Zu anderen Tagen kopieren">
                                                         <i class="ph-bold ph-copy text-sm"></i>
@@ -1058,8 +1058,8 @@
 
                 const isCopyMode = computed(() => !!duplicateSource.value);
 
-                const startCopyMode = (sourceDate, proposal) => {
-                    duplicateSource.value = { date: sourceDate, proposal };
+                const startCopyMode = (sourceDate, sourceType, proposal) => {
+                    duplicateSource.value = { date: sourceDate, type: sourceType, proposal };
                 };
 
                 const stopCopyMode = () => {
@@ -1068,8 +1068,19 @@
 
                 const isTargetSlot = (date, type) => {
                     if (!isCopyMode.value) return false;
-                    // Target must be Dessert and NOT the source date
-                    return type === 'Dessert' && date !== duplicateSource.value.date;
+                    
+                    const source = duplicateSource.value;
+                    
+                    // Don't copy to self (same date AND same type)
+                    if (date === source.date && type === source.type) return false;
+
+                    // Type Compatibility Check
+                    if (source.type === 'Dessert') {
+                        return type === 'Dessert';
+                    } else {
+                        // Meals (Mittagessen/Abendessen) can only go to Meals
+                        return type === 'Mittagessen' || type === 'Abendessen';
+                    }
                 };
 
                 const handleSlotCopyClick = (targetDate, targetType) => {
