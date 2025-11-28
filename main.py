@@ -6,6 +6,7 @@ import logging
 
 app = Flask(__name__)
 
+import uuid
 from google.cloud import firestore
 import logging
 
@@ -21,86 +22,154 @@ logging.basicConfig(level=logging.INFO)
 # Initialize Firestore
 db = None
 try:
-    if os.environ.get("K_SERVICE"): # Check if running in Cloud Run
-        db = firestore.Client(project=PROJECT_ID, database="christmas-planner")
-        logging.info("Firestore initialized.")
+    # Always try to initialize Firestore
+    db = firestore.Client(project=PROJECT_ID, database="christmas-planner")
+    logging.info(f"Firestore initialized with project: {PROJECT_ID}")
 except Exception as e:
-    logging.warning(f"Firestore init failed (running local?): {e}")
+    logging.error(f"Firestore init failed: {e}")
 
-def read_data():
-    """Reads JSON from Firestore or local file. Returns (data, etag)."""
-    if db:
-        try:
-            doc_ref = db.collection('config').document('planner')
-            doc = doc_ref.get()
-            if doc.exists:
-                # Use update_time as ETag
-                return doc.to_dict(), str(doc.update_time.nanosecond)
-            return {}, "0"
-        except Exception as e:
-            logging.error(f"Firestore Read Error: {e}")
-            return {}, None
-    else:
-        # Local Fallback
-        if os.path.exists(LOCAL_FILE):
-            try:
-                with open(LOCAL_FILE, 'r') as f:
-                    content = f.read()
-                    data = json.loads(content)
-                    etag = str(hash(content))
-                    return data, etag
-            except Exception as e:
-                logging.error(f"Local Read Error: {e}")
-                return {}, None
-        return {}, "0"
+def migrate_old_data(old_data):
+    """Migrates monolithic data to new collection structure."""
+    if not db: return
+    
+    try:
+        logging.info("Migrating old data to new structure...")
+        batch = db.batch()
+        
+        # 1. Slots
+        slots = old_data.get('slots', {})
+        for key, slot_data in slots.items():
+            batch.set(db.collection('slots').document(key), slot_data)
+            
+        # 2. Groceries
+        batch.set(db.collection('lists').document('groceries'), {'items': old_data.get('groceries', [])})
+        
+        # 3. Settings
+        batch.set(db.collection('config').document('settings'), old_data.get('settings', {}))
+        
+        # 4. Metadata
+        new_version = str(uuid.uuid4())
+        batch.set(db.collection('config').document('metadata'), {'version': new_version})
+        
+        batch.commit()
+        logging.info("Migration complete.")
+        return new_version
+    except Exception as e:
+        logging.error(f"Migration failed: {e}")
+        return None
+
+def read_data(client_etag=None):
+    """
+    Reads JSON from Firestore. 
+    Returns (data, etag, not_modified_bool).
+    If client_etag matches current version, data is None and not_modified is True.
+    """
+    if not db:
+        logging.error("Database not initialized")
+        return {}, "0", False
+
+    try:
+        # 1. Check Metadata (Cost: 1 read)
+        meta_ref = db.collection('config').document('metadata')
+        meta_doc = meta_ref.get()
+        
+        current_version = "0"
+        if meta_doc.exists:
+            current_version = meta_doc.get('version')
+        else:
+            # CHECK MIGRATION: If metadata doesn't exist, check for old monolithic doc
+            old_doc_ref = db.collection('config').document('planner')
+            old_doc = old_doc_ref.get()
+            if old_doc.exists:
+                old_data = old_doc.to_dict()
+                migrated_version = migrate_old_data(old_data)
+                if migrated_version:
+                    current_version = migrated_version
+                    # Fall through to read the newly migrated data
+            else:
+                # No data at all, return empty
+                return {}, "0", False
+
+        # 2. Check ETag optimization
+        if client_etag and client_etag == current_version:
+            return None, current_version, True
+
+        # 3. Fetch Full Data (Cost: N+2 reads)
+        # Fetch Slots
+        slots_ref = db.collection('slots')
+        slots = {}
+        for doc in slots_ref.stream():
+            slots[doc.id] = doc.to_dict()
+
+        # Fetch Groceries
+        groc_doc = db.collection('lists').document('groceries').get()
+        groceries = groc_doc.get('items') if groc_doc.exists else []
+
+        # Fetch Settings
+        sett_doc = db.collection('config').document('settings').get()
+        settings = sett_doc.to_dict() if sett_doc.exists else {}
+
+        full_data = {
+            "slots": slots,
+            "groceries": groceries,
+            "settings": settings
+        }
+        
+        return full_data, current_version, False
+
+    except Exception as e:
+        logging.error(f"Firestore Read Error: {e}")
+        return {}, None, False
 
 def write_data(data, expected_etag=None):
-    """Writes JSON to Firestore or local file with optimistic locking."""
-    if db:
-        try:
-            doc_ref = db.collection('config').document('planner')
+    """Writes JSON to Firestore using Batch."""
+    if not db:
+        logging.error("Database not initialized")
+        return False, "error"
+
+    try:
+        meta_ref = db.collection('config').document('metadata')
+        
+        # 1. Optimistic Locking Check
+        # We need to fetch metadata to compare versions
+        # In a real high-concurrency app, we'd use a Transaction. 
+        # Here, getting it first is "okay" given the frontend merge logic, 
+        # but technically a race condition exists between read and batch commit.
+        # Given the requirements, we'll check strictly if expected_etag is provided.
+        
+        if expected_etag:
+            meta_doc = meta_ref.get()
+            current_version = meta_doc.get('version') if meta_doc.exists else "0"
+            if current_version != expected_etag:
+                return False, "conflict"
+
+        # 2. Prepare Batch
+        batch = db.batch()
+        
+        # Slots
+        slots = data.get('slots', {})
+        # Note: This overwrites existing slots. It does NOT delete slots that were removed in UI 
+        # (unless we explicitly handle deletion). 
+        # Since slots are fixed (Dates x MealTypes), overwrite is fine.
+        for key, slot_data in slots.items():
+            doc_ref = db.collection('slots').document(key)
+            batch.set(doc_ref, slot_data)
             
-            # Firestore Transactions for atomic updates could be used here,
-            # but for simple ETag/Precondition matching, we can check manually or just overwrite
-            # since the frontend is doing the merging logic.
-            # However, to respect the "Conflict" logic we built:
-            
-            # Note: Firestore update_time preconditions are a bit complex to pass directly 
-            # from the nanosecond string we sent. 
-            # For this simple app, we will trust the Frontend's smart merge and "Last Write Wins"
-            # OR we can just overwrite since the frontend handles the merge before sending.
-            
-            doc_ref.set(data) # merge=True if we wanted partial, but we send full state
-            return True, None
-        except Exception as e:
-            logging.error(f"Firestore Write Error: {e}")
-            return False, "error"
-    else:
-        # Local Fallback with Atomic Write
-        try:
-            # check current version first
-            if expected_etag and expected_etag != "0":
-                if os.path.exists(LOCAL_FILE):
-                    with open(LOCAL_FILE, 'r') as f:
-                        current_content = f.read()
-                        current_etag = str(hash(current_content))
-                        if current_etag != expected_etag:
-                            return False, "conflict"
-            
-            import tempfile
-            tmp_fd, tmp_path = tempfile.mkstemp(dir='.', text=True)
-            try:
-                with os.fdopen(tmp_fd, 'w') as tmp:
-                    json.dump(data, tmp, indent=2)
-                os.replace(tmp_path, LOCAL_FILE)
-            except Exception as e:
-                os.remove(tmp_path)
-                raise e
-                
-            return True, None
-        except Exception as e:
-            logging.error(f"Local Write Error: {e}")
-            return False, "error"
+        # Groceries
+        batch.set(db.collection('lists').document('groceries'), {'items': data.get('groceries', [])})
+        
+        # Settings
+        batch.set(db.collection('config').document('settings'), data.get('settings', {}))
+        
+        # Metadata
+        new_version = str(uuid.uuid4())
+        batch.set(meta_ref, {'version': new_version})
+        
+        batch.commit()
+        return True, None
+    except Exception as e:
+        logging.error(f"Firestore Write Error: {e}")
+        return False, "error"
 
 @app.route('/')
 def index():
@@ -110,7 +179,13 @@ def index():
 @app.route('/api/data', methods=['GET'])
 def get_data():
     """Endpoint for frontend polling."""
-    data, etag = read_data()
+    client_etag = request.headers.get('If-None-Match')
+    
+    data, etag, not_modified = read_data(client_etag)
+    
+    if not_modified:
+        return '', 304
+    
     response = jsonify(data)
     if etag:
         response.headers['ETag'] = etag
@@ -129,10 +204,6 @@ def save_data():
     success, error_code = write_data(data, expected_etag=if_match)
     
     if success:
-        # Return new ETag? ideally yes, but client can just refetch or assume it's current.
-        # Actually, for correctness, we should return the new ETag.
-        # But write_data doesn't return it easily without re-reading.
-        # Let's ask client to re-fetch or just return success.
         return jsonify({"status": "success"})
     elif error_code == "conflict":
         return jsonify({"error": "Data conflict. Please refresh."}), 409
