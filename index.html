@@ -177,23 +177,56 @@
                                                 class="ph-fill ph-crown-simple absolute -top-2 -right-2 text-xmas-gold text-xl drop-shadow-sm bg-white rounded-full p-0.5"></i>
 
                                             <div class="flex justify-between items-start">
-                                                <div>
+                                                <div class="flex-1">
                                                     <p class="font-bold text-gray-800 leading-tight">{{ prop.name }}</p>
                                                     <p class="text-xs text-gray-500 mt-0.5">von {{ prop.proposer }}</p>
+                                                    <a v-if="prop.recipeUrl" :href="prop.recipeUrl" target="_blank"
+                                                        class="text-xs text-xmas-red hover:underline flex items-center gap-1 mt-1"
+                                                        @click.stop>
+                                                        <i class="ph-bold ph-link"></i> Rezept ansehen
+                                                    </a>
                                                 </div>
-                                                <div class="text-center min-w-[30px]">
-                                                    <span class="text-sm font-bold block"
-                                                        :class="hasVotedFor(prop) ? 'text-xmas-red' : 'text-gray-400'">{{
-                                                        (prop.votes || []).length }}</span>
+                                                <div class="flex flex-col items-end gap-1">
+                                                    <div class="text-center min-w-[30px]">
+                                                        <span class="text-sm font-bold block"
+                                                            :class="hasVotedFor(prop) ? 'text-xmas-red' : 'text-gray-400'">{{
+                                                            (prop.votes || []).length }}</span>
+                                                    </div>
+                                                    <button
+                                                        v-if="currentUser === 'Organisator' || currentUser === prop.proposer"
+                                                        @click.stop="deleteProposal(day.date, type, prop.id)"
+                                                        class="text-gray-400 hover:text-red-500 transition-colors p-1"
+                                                        title="Löschen">
+                                                        <i class="ph-bold ph-trash"></i>
+                                                    </button>
                                                 </div>
                                             </div>
 
-                                            <button @click="toggleVote(day.date, type, prop)"
-                                                class="w-full mt-2 text-xs py-1 rounded flex items-center justify-center gap-1 transition-colors"
-                                                :class="hasVotedFor(prop) ? 'bg-xmas-red text-white' : 'bg-gray-100 hover:bg-gray-200 text-gray-600'">
-                                                <i class="ph"
-                                                    :class="hasVotedFor(prop) ? 'ph-heart-fill' : 'ph-heart'"></i>
-                                                {{ hasVotedFor(prop) ? 'Gewählt' : 'Wählen' }}
+                                            <div class="flex gap-1 mt-2">
+                                                <button @click="toggleVote(day.date, type, prop)"
+                                                    class="flex-1 text-xs py-1 rounded flex items-center justify-center gap-1 transition-colors"
+                                                    :class="hasVotedFor(prop) ? 'bg-xmas-red text-white' : 'bg-gray-100 hover:bg-gray-200 text-gray-600'">
+                                                    <i class="ph"
+                                                        :class="hasVotedFor(prop) ? 'ph-heart-fill' : 'ph-heart'"></i>
+                                                    {{ hasVotedFor(prop) ? 'Gewählt' : 'Wählen' }}
+                                                </button>
+                                                <button v-if="!prop.recipeUrl && !prop.isLoadingRecipe"
+                                                    @click="findRecipe(day.date, type, prop)"
+                                                    class="px-2 bg-xmas-gold/10 text-xmas-gold hover:bg-xmas-gold/20 rounded transition-colors"
+                                                    title="Rezept suchen">
+                                                    <i class="ph-bold ph-magic-wand"></i>
+                                                </button>
+                                                <div v-if="prop.isLoadingRecipe"
+                                                    class="px-2 flex items-center justify-center text-xmas-gold">
+                                                    <i class="ph-bold ph-spinner animate-spin"></i>
+                                                </div>
+                                            </div>
+
+                                            <button
+                                                v-if="currentUser === 'Organisator' && !slotIsApproved(day.date, type)"
+                                                @click="approveDish(day.date, type, prop)"
+                                                class="w-full mt-1 text-xs py-1 bg-xmas-green text-white rounded hover:bg-green-800 transition-colors flex items-center justify-center gap-1">
+                                                <i class="ph-bold ph-check"></i> Genehmigen
                                             </button>
                                         </div>
                                     </div>
@@ -229,6 +262,24 @@
 
         </main>
 
+        <!-- Grocery List Section -->
+        <section v-if="groceryList.length > 0" class="w-full max-w-6xl mt-8 mb-8">
+            <div class="snow-card p-6 border-t-4 border-xmas-gold">
+                <div class="flex items-center gap-3 mb-4">
+                    <i class="ph-fill ph-basket text-3xl text-xmas-gold"></i>
+                    <h2 class="font-festive text-3xl text-gray-800">Einkaufsliste</h2>
+                </div>
+                <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
+                    <div v-for="(item, index) in groceryList" :key="index"
+                        class="flex items-center gap-2 p-2 bg-white rounded border border-gray-100 shadow-sm">
+                        <input type="checkbox"
+                            class="w-4 h-4 text-xmas-green rounded focus:ring-xmas-green accent-xmas-green">
+                        <span class="text-gray-700">{{ item }}</span>
+                    </div>
+                </div>
+            </div>
+        </section>
+
         <!-- Sync Footer -->
         <footer class="mt-auto py-6 w-full max-w-6xl flex justify-between items-center text-sm font-festive text-xl">
             <div class="flex items-center gap-2 text-gray-500">
@@ -254,6 +305,7 @@
                 // -- State --
                 const currentUser = ref(null);
                 const mealSlots = ref({});
+                const groceryList = ref([]);
                 const newProposalText = ref("");
                 const showForm = ref({});
 
@@ -288,7 +340,8 @@
                         // Simple deep compare could go here, but for now we just replace
                         // Only replace if structure differs to avoid UI resets
                         if (JSON.stringify(data) !== JSON.stringify(mealSlots.value)) {
-                            mealSlots.value = data;
+                            mealSlots.value = data.slots || data; // Handle old format fallback
+                            if (data.groceries) groceryList.value = data.groceries;
                             if (isFirstLoad.value) {
                                 console.log("Initial data loaded");
                                 isFirstLoad.value = false;
@@ -307,7 +360,7 @@
                         const res = await fetch(API_ENDPOINT, {
                             method: 'POST',
                             headers: { 'Content-Type': 'application/json' },
-                            body: JSON.stringify(mealSlots.value)
+                            body: JSON.stringify({ slots: mealSlots.value, groceries: groceryList.value })
                         });
 
                         if (!res.ok) throw new Error('Save failed');
@@ -348,13 +401,17 @@
                 });
 
                 // -- Watcher for Auto-Save --
-                watch(mealSlots, () => {
+                watch([mealSlots, groceryList], () => {
                     debouncedSave();
                 }, { deep: true });
 
                 // -- Helpers & Logic (Same as before) --
                 const getSlotKey = (date, type) => `${date}_${type.toLowerCase()}`;
                 const isSignatureDish = (date, type) => date === '2025-12-24' && type === 'Abendessen';
+                const slotIsApproved = (date, type) => {
+                    const key = getSlotKey(date, type);
+                    return mealSlots.value[key]?.approved;
+                };
                 const formatDate = (dateStr) => new Date(dateStr).toLocaleDateString('de-DE', { day: 'numeric', month: 'short' });
 
                 const getRoleIcon = (role) => {
@@ -374,7 +431,12 @@
                     return max > 0 && (proposal.votes || []).length === max;
                 };
 
-                const getProposalClass = (proposal, date, type) => isLeading(proposal, date, type) ? 'bg-xmas-gold/10 border-xmas-gold' : 'bg-white border-gray-200 hover:border-gray-300';
+                const getProposalClass = (proposal, date, type) => {
+                    if (slotIsApproved(date, type)) {
+                        return proposal.approved ? 'bg-xmas-green/10 border-xmas-green ring-2 ring-xmas-green' : 'opacity-50 grayscale bg-gray-50';
+                    }
+                    return isLeading(proposal, date, type) ? 'bg-xmas-gold/10 border-xmas-gold' : 'bg-white border-gray-200 hover:border-gray-300';
+                };
                 const hasVotedFor = (prop) => (prop.votes || []).includes(currentUser.value);
 
                 // -- Actions --
@@ -418,11 +480,65 @@
                     else target.votes.push(currentUser.value);
                 };
 
+                const findRecipe = async (date, type, proposal) => {
+                    proposal.isLoadingRecipe = true;
+                    try {
+                        const res = await fetch('/api/ai/recipe', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ dish_name: proposal.name })
+                        });
+                        const data = await res.json();
+                        if (data.url) proposal.recipeUrl = data.url;
+                        if (data.ingredients) proposal.ingredients = data.ingredients;
+                    } catch (e) {
+                        console.error("Recipe lookup failed", e);
+                        alert("Konnte kein Rezept finden.");
+                    } finally {
+                        proposal.isLoadingRecipe = false;
+                    }
+                };
+
+                const approveDish = (date, type, proposal) => {
+                    const key = getSlotKey(date, type);
+                    if (mealSlots.value[key]) {
+                        mealSlots.value[key].approved = true;
+                        proposal.approved = true;
+
+                        // Add ingredients to grocery list
+                        if (proposal.ingredients) {
+                            // Avoid duplicates
+                            const newItems = proposal.ingredients.filter(i => !groceryList.value.includes(i));
+                            groceryList.value.push(...newItems);
+                        } else {
+                            // If no ingredients yet, try to fetch them or just add the dish name as placeholder
+                            groceryList.value.push(`${proposal.name} (Zutaten prüfen)`);
+                        }
+                    }
+                };
+
+                const deleteProposal = (date, type, proposalId) => {
+                    if (!confirm("Möchtest du diesen Vorschlag wirklich löschen?")) return;
+
+                    const key = getSlotKey(date, type);
+                    if (mealSlots.value[key] && mealSlots.value[key].proposals) {
+                        const proposal = mealSlots.value[key].proposals.find(p => p.id === proposalId);
+
+                        // Remove proposal
+                        mealSlots.value[key].proposals = mealSlots.value[key].proposals.filter(p => p.id !== proposalId);
+
+                        // If it was approved, unapprove the slot
+                        if (proposal && proposal.approved) {
+                            mealSlots.value[key].approved = false;
+                        }
+                    }
+                };
+
                 return {
                     currentUser, roles, days, mealTypes, login, logout,
                     getRoleIcon, formatDate, isSignatureDish, getProposals, hasVotedFor, isLeading, getProposalClass,
                     showForm, newProposalText, openForm, closeForm, submitProposal, toggleVote,
-                    syncStatus, syncMessage
+                    syncStatus, syncMessage, groceryList, findRecipe, approveDish, slotIsApproved, deleteProposal
                 };
             }
         }).mount('#app');

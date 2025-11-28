@@ -79,6 +79,46 @@ def save_data():
     else:
         return jsonify({"status": "error"}), 500
 
+import google.generativeai as genai
+
+# Configure Gemini
+GEMINI_API_KEY = os.environ.get('GEMINI_API_KEY')
+if GEMINI_API_KEY:
+    genai.configure(api_key=GEMINI_API_KEY)
+
+@app.route('/api/ai/recipe', methods=['POST'])
+def get_recipe_info():
+    """Uses Gemini to find a recipe URL and ingredients."""
+    if not GEMINI_API_KEY:
+        return jsonify({"error": "AI service not configured"}), 503
+
+    data = request.json
+    dish_name = data.get('dish_name')
+    if not dish_name:
+        return jsonify({"error": "No dish name provided"}), 400
+
+    try:
+        model = genai.GenerativeModel('gemini-pro')
+        prompt = f"""
+        For the dish "{dish_name}", please provide:
+        1. A URL to a high-quality, authentic recipe (preferably in German if the dish name is German, otherwise English).
+        2. A list of main ingredients needed for a grocery list (in German), calculated for 10 people (7 adults, 3 children).
+        
+        Return ONLY valid JSON in this format:
+        {{
+            "url": "https://example.com/recipe",
+            "ingredients": ["Ingredient 1", "Ingredient 2"]
+        }}
+        """
+        response = model.generate_content(prompt)
+        # Clean up potential markdown code blocks in response
+        text = response.text.replace('```json', '').replace('```', '').strip()
+        result = json.loads(text)
+        return jsonify(result)
+    except Exception as e:
+        logging.error(f"AI Error: {e}")
+        return jsonify({"error": "Failed to fetch recipe info"}), 500
+
 if __name__ == "__main__":
     # Cloud Run injects the PORT environment variable
     port = int(os.environ.get("PORT", 8080))
