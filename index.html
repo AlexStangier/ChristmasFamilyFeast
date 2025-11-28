@@ -652,6 +652,7 @@
 
                 const fetchData = async () => {
                     // If we are currently typing/saving, don't fetch to avoid jitter
+                    // EXCEPT if we need to refresh ETag or getting initial data
                     if (syncStatus.value === 'syncing' && !isFirstLoad.value) return;
 
                     try {
@@ -663,15 +664,25 @@
                         if (etag) currentETag.value = etag;
 
                         const data = await res.json();
+                        const serverSlots = data.slots || data;
+                        const serverGroceries = data.groceries || [];
 
-                        // Simple deep compare could go here, but for now we just replace
-                        // Only replace if structure differs to avoid UI resets
-                        if (JSON.stringify(data) !== JSON.stringify(mealSlots.value)) {
-                            mealSlots.value = data.slots || data; // Handle old format fallback
-                            if (data.groceries) groceryList.value = data.groceries;
+                        // Deep compare to see if we even need to merge (optimization)
+                        const currentString = JSON.stringify({ slots: mealSlots.value, groceries: groceryList.value });
+                        const serverString = JSON.stringify({ slots: serverSlots, groceries: serverGroceries });
+                        
+                        if (currentString !== serverString) {
                             if (isFirstLoad.value) {
+                                // First load: Replace completely
+                                mealSlots.value = serverSlots;
+                                groceryList.value = serverGroceries;
                                 console.log("Initial data loaded");
                                 isFirstLoad.value = false;
+                            } else {
+                                // Subsequent loads: Merge to be safe
+                                performSmartMerge(mealSlots.value, serverSlots);
+                                performSmartMergeGroceries(groceryList.value, serverGroceries);
+                                console.log("Background sync merged new data");
                             }
                         }
                     } catch (e) {
@@ -679,9 +690,78 @@
                     }
                 };
 
-                const saveData = async () => {
+                // -- Smart Merging Logic --
+
+                const performSmartMerge = (localSlots, serverSlots) => {
+                    for (const key in serverSlots) {
+                        const sSlot = serverSlots[key];
+                        // If local doesn't have this slot (unlikely for fixed structure, but possible), take server's
+                        if (!localSlots[key]) {
+                            localSlots[key] = sSlot;
+                            continue;
+                        }
+                        const lSlot = localSlots[key];
+
+                        // Merge Approved Status (Server wins to prevent desync on permissions)
+                        lSlot.approved = sSlot.approved;
+
+                        // Ensure proposals array exists
+                        if (!lSlot.proposals) lSlot.proposals = [];
+                        if (!sSlot.proposals) sSlot.proposals = [];
+
+                        const localMap = new Map(lSlot.proposals.map(p => [p.id, p]));
+
+                        sSlot.proposals.forEach(sProp => {
+                            const lProp = localMap.get(sProp.id);
+                            if (lProp) {
+                                // Proposal exists in both: Merge Details
+                                
+                                // 1. Votes: Union of voters
+                                const combinedVotes = new Set([...(lProp.votes || []), ...(sProp.votes || [])]);
+                                lProp.votes = Array.from(combinedVotes);
+
+                                // 2. AI Data: If server has it and local doesn't (or server is newer?), take server.
+                                // We prefer server for heavy data to avoid re-fetching.
+                                if (sProp.recipeUrl && !lProp.recipeUrl) lProp.recipeUrl = sProp.recipeUrl;
+                                if (sProp.ingredients?.length && !lProp.ingredients?.length) lProp.ingredients = sProp.ingredients;
+                                if (sProp.instructions?.length && !lProp.instructions?.length) lProp.instructions = sProp.instructions;
+                                
+                                // 3. Approval status
+                                lProp.approved = sProp.approved;
+                            } else {
+                                // New proposal on server -> Add to local
+                                lSlot.proposals.push(sProp);
+                            }
+                        });
+                        // Note: We do NOT remove local proposals that are missing on server. 
+                        // This ensures that a proposal I just created (but haven't synced) isn't deleted.
+                    }
+                };
+
+                const performSmartMergeGroceries = (localList, serverList) => {
+                    // Simple Union by text/id to avoid data loss
+                    // We need to handle both strings and objects (placeholders)
+                    
+                    const localStrings = new Set(localList.map(i => typeof i === 'string' ? i : i.text));
+                    
+                    serverList.forEach(sItem => {
+                        const sText = typeof sItem === 'string' ? sItem : sItem.text;
+                        if (!localStrings.has(sText)) {
+                            localList.push(sItem);
+                            localStrings.add(sText);
+                        }
+                    });
+                };
+
+                const saveData = async (retryCount = 0) => {
+                    if (retryCount > 3) {
+                        syncStatus.value = 'error';
+                        syncMessage.value = 'Sync-Fehler: Zu viele Konflikte.';
+                        return;
+                    }
+
                     syncStatus.value = 'syncing';
-                    syncMessage.value = 'Synchronisiere mit Cloud...';
+                    syncMessage.value = retryCount > 0 ? `Löse Konflikt (Versuch ${retryCount})...` : 'Synchronisiere mit Cloud...';
 
                     try {
                         const headers = { 'Content-Type': 'application/json' };
@@ -697,23 +777,29 @@
                         });
 
                         if (res.status === 409) {
-                            // Conflict!
-                            syncStatus.value = 'error';
-                            syncMessage.value = 'Konflikt! Daten wurden extern geändert.';
-                            if (confirm("Jemand anderes hat Änderungen vorgenommen. Seite neu laden, um Datenverlust zu vermeiden?")) {
-                                window.location.reload();
-                            }
-                            return;
+                            console.warn("Conflict detected (409). Merging and retrying...");
+                            
+                            // 1. Fetch latest Server Data
+                            const fetchRes = await fetch(API_ENDPOINT);
+                            if (!fetchRes.ok) throw new Error('Fetch failed during merge');
+                            
+                            const serverData = await fetchRes.json();
+                            const newETag = fetchRes.headers.get('ETag');
+                            if (newETag) currentETag.value = newETag;
+
+                            // 2. Smart Merge (Server -> Local)
+                            performSmartMerge(mealSlots.value, serverData.slots || serverData);
+                            performSmartMergeGroceries(groceryList.value, serverData.groceries || []);
+
+                            // 3. Retry Save (Recursive)
+                            return saveData(retryCount + 1);
                         }
 
                         if (!res.ok) throw new Error('Save failed');
 
-                        // On success, we assume our version is now current, but ideally we should get a new ETag.
-                        // For now, next poll will update ETag, or we could optimistically update if server returned it.
-                        // We will rely on polling to catch up ETag if we continue editing.
-                        // Actually, to prevent immediate subsequent save fail, we should probably fetch immediately?
-                        // Or just clear ETag and let next fetch handle it? 
-                        // Safest: Refetch immediately to get new ETag.
+                        // Success - Fetch ETag for next time (fast, low payload usually)
+                        // Or just assume our write is authoritative. 
+                        // Safer to fetch headers.
                         fetchData();
 
                         syncStatus.value = 'saved';
