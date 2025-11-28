@@ -120,5 +120,34 @@ The application uses **Vertex AI** with service account authentication instead o
 - No API key management required in production
 - Automatic authentication via Google Cloud IAM
 
+## 📖 Benutzerhandbuch (Kurzanleitung)
+
+Willkommen beim **Weihnachts-Essensplaner**! So nutzt du die App:
+
+1.  **Anmeldung**:
+    - Wähle beim Start deine Rolle (z.B. "Eltern", "Hamburg") aus.
+    - Oben rechts kannst du dich jederzeit ab- oder ummelden.
+
+2.  **Gerichte vorschlagen**:
+    - Klicke in einem freien Slot auf **"Vorschlagen"**.
+    - Tippe den Namen des Gerichts ein. Die **AI** macht dir Vorschläge.
+    - Wähle ein Gericht aus der Liste, um eine **Vorschau** (Zutaten & Rezept) zu sehen.
+    - Klicke auf **Hinzufügen**, um es zur Abstimmung zu stellen.
+
+3.  **Abstimmung & Planung**:
+    - Klicke auf das **Herz-Symbol**, um für ein Gericht zu stimmen.
+    - Das Gericht mit den meisten Stimmen erhält eine kleine Krone (#1).
+    - **Kopieren**: Mit dem Kopieren-Button (zwei Blätter) kannst du Gerichte einfach auf andere Tage übertragen (z.B. Resteessen am Mittag).
+
+4.  **Entscheidung (Nur Organisator)**:
+    - Der Organisator hat den Button **"Genehmigen"**.
+    - Ein genehmigtes Gericht wird grün markiert und der Slot ist fixiert.
+    - **Automatisch**: Die Zutaten landen sofort auf der Einkaufsliste!
+
+5.  **Einkaufsliste**:
+    - Die Liste füllt sich automatisch basierend auf den genehmigten Gerichten.
+    - **Export**: Klicke auf "Exportieren", um eine sortierte Liste (nach Kategorien wie 🍎 Obst & Gemüse) zu erhalten, die du einfach kopieren und per WhatsApp teilen kannst.
+    - **Zutaten laden**: Falls bei einem Gericht "(Zutaten prüfen)" steht, klicke auf den Pfeil-Button daneben, um die Zutaten per AI nachzuladen.
+
 ---
-*Made with 🎄 for the family.*
+*Made with 🎄 for the family*
