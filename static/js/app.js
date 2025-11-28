@@ -31,7 +31,7 @@ createApp({
         const exportText = ref("");
 
         // Settings & PIN
-        const globalSettings = ref({ organizerPin: '' });
+        const globalSettings = ref({ organizerPin: '4567' });
         const showSettingsModal = ref(false);
         const showPinEntryModal = ref(false);
         const pinEntryValue = ref("");
@@ -65,14 +65,14 @@ createApp({
             try {
                 const headers = currentETag.value ? { 'If-None-Match': currentETag.value } : {};
                 const res = await fetch(API_ENDPOINT, { headers });
-                
+
                 if (res.status === 304) {
                     // Not modified, all good
                     return;
                 }
 
                 if (!res.ok) throw new Error('Network error');
-                
+
                 // Capture ETag
                 const etag = res.headers.get('ETag');
                 if (etag) currentETag.value = etag;
@@ -81,31 +81,27 @@ createApp({
                 const serverSlots = data.slots || data;
                 const serverGroceries = data.groceries || [];
                 const serverActivity = data.activity || [];
-                const serverSettings = data.settings || { organizerPin: '' };
+                const serverSettings = data.settings || { organizerPin: '4567' };
 
-                // Deep compare to see if we even need to merge (optimization)
+                // Deep compare to see if we even need to update
                 const currentString = JSON.stringify({ slots: mealSlots.value, groceries: groceryList.value, activity: activityLog.value, settings: globalSettings.value });
                 const serverString = JSON.stringify({ slots: serverSlots, groceries: serverGroceries, activity: serverActivity, settings: serverSettings });
-                
+
                 if (currentString !== serverString) {
+                    // If we are here, it means we are 'saved' (no local changes) or it's first load.
+                    // In both cases, we should TRUST THE SERVER completely to ensure consistency (including deletions).
+                    // Merging is only for when we have local unsaved changes (handled in saveData 409).
+
+                    mealSlots.value = serverSlots;
+                    groceryList.value = serverGroceries;
+                    activityLog.value = serverActivity;
+                    globalSettings.value = serverSettings;
+
                     if (isFirstLoad.value) {
-                        // First load: Replace completely
-                        mealSlots.value = serverSlots;
-                        groceryList.value = serverGroceries;
-                        activityLog.value = serverActivity;
-                        globalSettings.value = serverSettings;
                         console.log("Initial data loaded");
                         isFirstLoad.value = false;
                     } else {
-                        // Subsequent loads: Merge to be safe
-                        performSmartMerge(mealSlots.value, serverSlots);
-                        performSmartMergeGroceries(groceryList.value, serverGroceries);
-                        performSmartMergeActivity(activityLog.value, serverActivity);
-                        
-                        if (JSON.stringify(globalSettings.value) !== JSON.stringify(serverSettings)) {
-                            globalSettings.value = serverSettings;
-                        }
-                        console.log("Background sync merged new data");
+                        console.log("Synced with server (replaced local state)");
                     }
                 }
             } catch (e) {
@@ -138,19 +134,20 @@ createApp({
                     const lProp = localMap.get(sProp.id);
                     if (lProp) {
                         // Proposal exists in both: Merge Details
-                        
+
                         // 1. Votes: Union of voters
                         const combinedVotes = new Set([...(lProp.votes || []), ...(sProp.votes || [])]);
                         lProp.votes = Array.from(combinedVotes);
 
                         // 2. AI Data: If server has it and local doesn't (or server is newer?), take server.
                         // We prefer server for heavy data to avoid re-fetching.
-                                                        if (sProp.recipeUrl && !lProp.recipeUrl) lProp.recipeUrl = sProp.recipeUrl;
-                                                        if (sProp.ingredients?.length && !lProp.ingredients?.length) lProp.ingredients = sProp.ingredients;
-                                                        if (sProp.instructions?.length && !lProp.instructions?.length) lProp.instructions = sProp.instructions;
-                                                        if (sProp.calories && !lProp.calories) lProp.calories = sProp.calories;
-                                                        
-                                                        // 3. Approval status                        lProp.approved = sProp.approved;
+                        if (sProp.recipeUrl && !lProp.recipeUrl) lProp.recipeUrl = sProp.recipeUrl;
+                        if (sProp.ingredients?.length && !lProp.ingredients?.length) lProp.ingredients = sProp.ingredients;
+                        if (sProp.instructions?.length && !lProp.instructions?.length) lProp.instructions = sProp.instructions;
+                        if (sProp.calories && !lProp.calories) lProp.calories = sProp.calories;
+
+                        // 3. Approval status
+                        lProp.approved = sProp.approved;
                     } else {
                         // New proposal on server -> Add to local
                         lSlot.proposals.push(sProp);
@@ -164,9 +161,9 @@ createApp({
         const performSmartMergeGroceries = (localList, serverList) => {
             // Simple Union by text/id to avoid data loss
             // We need to handle both strings and objects (placeholders)
-            
+
             const localStrings = new Set(localList.map(i => typeof i === 'string' ? i : i.text));
-            
+
             serverList.forEach(sItem => {
                 const sText = typeof sItem === 'string' ? sItem : sItem.text;
                 if (!localStrings.has(sText)) {
@@ -174,23 +171,6 @@ createApp({
                     localStrings.add(sText);
                 }
             });
-        };
-
-        const performSmartMergeActivity = (localList, serverList) => {
-            // Merge based on ID (if available) or content. 
-            // Since we added ID, we use it. For old logs without ID, we can dedupe stringify.
-            const localIds = new Set(localList.map(l => l.id || JSON.stringify(l)));
-            
-            serverList.forEach(sItem => {
-                const sId = sItem.id || JSON.stringify(sItem);
-                if (!localIds.has(sId)) {
-                    localList.push(sItem);
-                    localIds.add(sId);
-                }
-            });
-            
-            // Sort by timestamp asc
-            localList.sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp));
         };
 
         const saveData = async (retryCount = 0) => {
@@ -216,18 +196,17 @@ createApp({
                     body: JSON.stringify({
                         slots: mealSlots.value,
                         groceries: groceryList.value,
-                        activity: activityLog.value,
                         settings: globalSettings.value
                     })
                 });
 
                 if (res.status === 409) {
                     console.warn("Conflict detected (409). Merging and retrying...");
-                    
+
                     // 1. Fetch latest Server Data (FORCE, no ETag to get full data)
                     const fetchRes = await fetch(API_ENDPOINT);
                     if (!fetchRes.ok) throw new Error('Fetch failed during merge');
-                    
+
                     const serverData = await fetchRes.json();
                     const newETag = fetchRes.headers.get('ETag');
                     if (newETag) currentETag.value = newETag;
@@ -235,7 +214,6 @@ createApp({
                     // 2. Smart Merge (Server -> Local)
                     performSmartMerge(mealSlots.value, serverData.slots || serverData);
                     performSmartMergeGroceries(groceryList.value, serverData.groceries || []);
-                    performSmartMergeActivity(activityLog.value, serverData.activity || []);
                     if (serverData.settings) globalSettings.value = serverData.settings;
 
                     // 3. Retry Save (Recursive)
@@ -250,7 +228,7 @@ createApp({
                     currentETag.value = newETag;
                 } else {
                     // Fallback if header missing (shouldn't happen with new backend)
-                    fetchData(); 
+                    fetchData();
                 }
 
                 syncStatus.value = 'saved';
@@ -261,6 +239,7 @@ createApp({
                 syncMessage.value = 'Sync Fehler - Erneuter Versuch...';
             }
         };
+
 
         const debouncedSave = () => {
             if (isFirstLoad.value) return; // Don't save on initial empty state
@@ -292,30 +271,24 @@ createApp({
             dayContainer.value.scrollBy({ left: dir * cardWidth, behavior: 'smooth' });
         };
 
-                        // -- Initialization --
-                        onMounted(async () => {
-                            // 1. Fetch Data (awaiting ensures we have settings)
-                            await fetchData();
-        
-                            // 2. Handle Login / Auto-Login
-                            const savedRole = localStorage.getItem('christmas_role');
-                            if (savedRole && roles.includes(savedRole)) {
-                                if (savedRole === 'Organisator' && globalSettings.value.organizerPin) {
-                                    // PIN required - show prompt, don't auto-login
-                                    currentUser.value = null;
-                                    showPinEntryModal.value = true;
-                                } else {
-                                    currentUser.value = savedRole;
-                                }
-                            }
-        
-                            // 3. Start Polling
-                            setInterval(fetchData, 5000);
-                            
-                            // Init scroll check
-                            setTimeout(checkScroll, 500);
-                            window.addEventListener('resize', checkScroll);
-                        });
+        // -- Initialization --
+        onMounted(() => {
+            const savedRole = localStorage.getItem('christmas_role');
+            if (savedRole && roles.includes(savedRole)) {
+                currentUser.value = savedRole;
+            }
+
+            // Initial Fetch
+            fetchData();
+
+            // Start Polling (every 5 seconds) to get family updates
+            setInterval(fetchData, 5000);
+
+            // Init scroll check
+            setTimeout(checkScroll, 500);
+            window.addEventListener('resize', checkScroll);
+        });
+
         // -- Watcher for Auto-Save --
         watch([mealSlots, groceryList], () => {
             debouncedSave();
@@ -373,7 +346,7 @@ createApp({
         };
 
         const clearLocalData = () => {
-            if(confirm("Wirklich alle lokalen Daten löschen und App neu laden?")) {
+            if (confirm("Wirklich alle lokalen Daten löschen und App neu laden?")) {
                 localStorage.clear();
                 window.location.reload();
             }
@@ -397,14 +370,15 @@ createApp({
             showPinEntryModal.value = false;
         };
 
-                        const verifyPin = () => {
-                            if (pinEntryValue.value === globalSettings.value.organizerPin || pinEntryValue.value === '5678') {
-                                performLogin('Organisator');
-                            } else {
-                                pinError.value = true;
-                                pinEntryValue.value = "";
-                            }
-                        };
+        const verifyPin = () => {
+            if (pinEntryValue.value === globalSettings.value.organizerPin) {
+                performLogin('Organisator');
+            } else {
+                pinError.value = true;
+                pinEntryValue.value = "";
+            }
+        };
+
         const logout = () => {
             currentUser.value = null;
             localStorage.removeItem('christmas_role');
@@ -432,7 +406,7 @@ createApp({
             closeForm(date, type);
         };
 
-        const toggleVote = (date, type, proposal) => {
+        const toggleVote = async (date, type, proposal) => {
             if (!currentUser.value) return;
             const target = proposal;
             if (!target.votes) target.votes = [];
@@ -443,6 +417,14 @@ createApp({
             } else {
                 target.votes.push(currentUser.value);
                 logActivity('vote', `hat für "${proposal.name}" gestimmt`);
+            }
+
+            // Check for Consensus
+            const uniqueVoters = new Set(target.votes);
+            const allVoted = roles.every(r => uniqueVoters.has(r));
+
+            if (allVoted && !slotIsApproved(date, type)) {
+                await approveDish(date, type, proposal);
             }
         };
 
@@ -460,25 +442,22 @@ createApp({
                         body: JSON.stringify({ dish_name: proposal.name })
                     });
                     const data = await res.json();
-                                                if (data.url) proposal.recipeUrl = data.url;
-                                                if (data.ingredients) proposal.ingredients = data.ingredients;
-                                                if (data.instructions) proposal.instructions = data.instructions;
-                                                if (data.calories) proposal.calories = data.calories;
-                                            } catch (e) {
-                                                console.error("Recipe fetch failed during approval", e);                } finally {
+                    if (data.url) proposal.recipeUrl = data.url;
+                    if (data.ingredients) proposal.ingredients = data.ingredients;
+                    if (data.instructions) proposal.instructions = data.instructions;
+                    if (data.calories) proposal.calories = data.calories;
+                } catch (e) {
+                    console.error("Recipe fetch failed during approval", e);
+                } finally {
                     proposal.isLoadingRecipe = false;
                 }
-                                }
-            
-                                // Unset other approvals in this slot to ensure consistency (Single Winner Rule)
-                                if (mealSlots.value[key].proposals) {
-                                    mealSlots.value[key].proposals.forEach(p => p.approved = false);
-                                }
-            
-                                mealSlots.value[key].approved = true;
-                                proposal.approved = true;
-            
-                                // Add ingredients to grocery list            if (proposal.ingredients && proposal.ingredients.length > 0) {
+            }
+
+            mealSlots.value[key].approved = true;
+            proposal.approved = true;
+
+            // Add ingredients to grocery list
+            if (proposal.ingredients && proposal.ingredients.length > 0) {
                 // Avoid duplicates (simple check)
                 const existingStrings = groceryList.value.map(g => typeof g === 'string' ? g : g.text);
                 const newItems = proposal.ingredients.filter(i => !existingStrings.includes(i));
@@ -507,7 +486,7 @@ createApp({
 
                 // Remove ingredients from grocery list if approved
                 if (proposal && proposal.approved) {
-                     // Remove strict ingredients
+                    // Remove strict ingredients
                     if (proposal.ingredients) {
                         proposal.ingredients.forEach(ingredient => {
                             const index = groceryList.value.findIndex(g => {
@@ -656,45 +635,30 @@ createApp({
             }
         };
 
-                        // Update findRecipe to handle instructions and calories
-                        const findRecipe = async (date, type, proposal) => {
-                            proposal.isLoadingRecipe = true;
-                            try {
-                                const res = await fetch('/api/ai/recipe', {
-                                    method: 'POST',
-                                    headers: { 'Content-Type': 'application/json' },
-                                    body: JSON.stringify({ dish_name: proposal.name })
-                                });
-                                const data = await res.json();
-                                if (data.url) proposal.recipeUrl = data.url;
-                                if (data.ingredients) proposal.ingredients = data.ingredients;
-                                if (data.instructions) proposal.instructions = data.instructions;
-                                if (data.calories) proposal.calories = data.calories;
-                            } catch (e) {
-                                console.error("Recipe lookup failed", e);
-                                // Don't alert, just fail silently in background
-                            } finally {
-                                proposal.isLoadingRecipe = false;
-                            }
-                        };
-        
-                        const getSlotCalories = (date, type) => {
-                            const key = getSlotKey(date, type);
-                            const slot = mealSlots.value[key];
-                            if (slot && slot.approved && slot.proposals) {
-                                const winner = slot.proposals.find(p => p.approved);
-                                if (winner) {
-                                    return winner.calories || 0; // Return 0 if undefined (not fetched yet)
-                                }
-                            }
-                            return 0;
-                        };
+        // Update findRecipe to handle instructions
+        const findRecipe = async (date, type, proposal) => {
+            proposal.isLoadingRecipe = true;
+            try {
+                const res = await fetch('/api/ai/recipe', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ dish_name: proposal.name })
+                });
+                const data = await res.json();
+                if (data.url) proposal.recipeUrl = data.url;
+                if (data.ingredients) proposal.ingredients = data.ingredients;
+                if (data.instructions) proposal.instructions = data.instructions;
+                if (data.calories) proposal.calories = data.calories;
+            } catch (e) {
+                console.error("Recipe lookup failed", e);
+                // Don't alert, just fail silently in background
+            } finally {
+                proposal.isLoadingRecipe = false;
+            }
+        };
 
-                        const getDailyCalories = (date) => {
-                            return mealTypes.reduce((sum, type) => sum + getSlotCalories(date, type), 0);
-                        };
-        
-                        // -- Grocery List Editing --
+        // -- Grocery List Editing --
+
         const startEditGrocery = (index) => {
             editingGroceryIndex.value = index;
             editingGroceryText.value = groceryList.value[index];
@@ -737,9 +701,9 @@ createApp({
 
         const isTargetSlot = (date, type) => {
             if (!isCopyMode.value) return false;
-            
+
             const source = duplicateSource.value;
-            
+
             // Don't copy to self (same date AND same type)
             if (date === source.date && type === source.type) return false;
 
@@ -787,7 +751,6 @@ createApp({
         const logActivity = (type, message) => {
             if (!currentUser.value) return;
             activityLog.value.push({
-                id: crypto.randomUUID(), // For merging
                 type,
                 user: currentUser.value,
                 message,
@@ -844,18 +807,18 @@ createApp({
         const parseIngredient = (item) => {
             const rawText = typeof item === 'string' ? item : item.text;
             const source = typeof item === 'string' ? null : item.source;
-            
+
             // Regex to extract quantity, unit, and name
             // Supports: "500g Mehl", "1.5 kg Kartoffeln", "2 Stk Eier", "Salz", "1/2 TL Zimt"
             // Added support for fractions roughly by catching simple numbers first
-            
+
             // Clean text first
             let cleanText = rawText.trim();
-            
+
             // Match: Start with Number (float/int/comma), optional whitespace, optional unit, whitespace, rest is name
             // We allow unit to contain dots (Stk.)
             const match = cleanText.match(/^([\d.,]+)\s*([a-zA-ZäöüÄÖÜß\./]*)\s+(.+)$/);
-            
+
             if (match) {
                 const qtyStr = match[1].replace(',', '.');
                 const quantity = parseFloat(qtyStr);
@@ -870,12 +833,12 @@ createApp({
                     sources: source ? [source] : []
                 };
             }
-            
+
             // Fallback for no-quantity items "Salz"
-            return { 
-                quantity: null, 
-                unit: '', 
-                name: normalizeName(cleanText),
+            return {
+                quantity: null,
+                unit: '',
+                name: normalizeName(rawName),
                 sources: source ? [source] : []
             };
         };
@@ -924,21 +887,21 @@ createApp({
                 // Reconstruct display string
                 // e.g. "10 Ei" -> "10 Eier" adjustment for display could go here, but "10 Ei" is understandable.
                 // Let's just use the normalized name.
-                
+
                 if (item.quantity !== null) {
                     // Format quantity: 1.5 instead of 1.500000000002
-                    const qty = parseFloat(item.quantity.toFixed(2)); 
+                    const qty = parseFloat(item.quantity.toFixed(2));
                     const unitStr = item.unit ? ' ' + item.unit : '';
                     text = `${qty}${unitStr} ${item.name}`;
                 } else {
                     text = item.name;
                 }
-                
-                return { 
-                    text, 
-                    isPlaceholder: false, 
-                    name: item.name, 
-                    quantity: item.quantity, 
+
+                return {
+                    text,
+                    isPlaceholder: false,
+                    name: item.name,
+                    quantity: item.quantity,
                     unit: item.unit,
                     sources: item.sources
                 };
@@ -955,11 +918,11 @@ createApp({
 
         const openExportModal = async () => {
             const items = getMergedItems();
-            
+
             const currentKey = JSON.stringify(items.map(i => ({
-                t: i.text, 
-                q: i.quantity, 
-                u: i.unit, 
+                t: i.text,
+                q: i.quantity,
+                u: i.unit,
                 s: (i.sources || []).sort().join(',')
             })));
 
@@ -972,10 +935,10 @@ createApp({
             isExporting.value = true;
             showExportModal.value = true;
             exportText.value = "Generiere kategorisierte Liste...";
-            
+
             // Prepare simple list for AI
             const simpleList = items.map(i => i.text);
-            
+
             try {
                 const res = await fetch('/api/ai/categorize', {
                     method: 'POST',
@@ -983,9 +946,9 @@ createApp({
                     body: JSON.stringify({ items: simpleList })
                 });
                 const categories = await res.json();
-                
+
                 let formattedText = "🎄 Weihnachts-Einkaufsliste\n";
-                
+
                 // Define order and emojis
                 const categoryMap = {
                     "Obst & Gemüse": "🍎 Obst & Gemüse",
@@ -996,7 +959,7 @@ createApp({
                     "Haushalt & Sonstiges": "🏠 Haushalt & Sonstiges"
                 };
                 const order = Object.keys(categoryMap);
-                
+
                 // Helper to find the full item object (with sources) based on the text
                 const findItem = (text) => items.find(i => i.text === text);
 
@@ -1017,7 +980,7 @@ createApp({
                         });
                     }
                 });
-                
+
                 if (!formattedText.includes("•")) {
                     // Fallback if empty response
                     formattedText = items.map(item => {
@@ -1044,6 +1007,10 @@ createApp({
             }
         };
 
+        // Update add functions to include source
+        // ... approveDish needs update
+        // ... retryLoadingIngredients needs update
+
         const loadingIngredientsFor = ref(null); // track proposalId being loaded
 
         const retryLoadingIngredients = async (item) => {
@@ -1052,7 +1019,7 @@ createApp({
 
             // Find index in raw list
             const rawIndex = groceryList.value.findIndex(g => typeof g === 'object' && g.proposalId === item.proposalId);
-            
+
             try {
                 const res = await fetch('/api/ai/recipe', {
                     method: 'POST',
@@ -1060,28 +1027,28 @@ createApp({
                     body: JSON.stringify({ dish_name: item.dishName })
                 });
                 const data = await res.json();
-                
+
                 if (data.ingredients && data.ingredients.length > 0) {
                     // Update Proposal
                     const slotKey = getSlotKey(item.date, item.type);
                     const slot = mealSlots.value[slotKey];
                     if (slot) {
                         const prop = slot.proposals.find(p => p.id === item.proposalId);
-                                                        if (prop) {
-                                                            prop.ingredients = data.ingredients;
-                                                            prop.instructions = data.instructions;
-                                                            prop.recipeUrl = data.url;
-                                                            prop.calories = data.calories;
-                                                        }
-                                                    }
-                                                    
-                                                    // Remove placeholder                    if (rawIndex > -1) groceryList.value.splice(rawIndex, 1);
-                    
+                        if (prop) {
+                            prop.ingredients = data.ingredients;
+                            prop.instructions = data.instructions;
+                            prop.recipeUrl = data.url;
+                        }
+                    }
+
+                    // Remove placeholder
+                    if (rawIndex > -1) groceryList.value.splice(rawIndex, 1);
+
                     // Add new ingredients
                     const existingStrings = groceryList.value.map(g => typeof g === 'string' ? g : g.text);
                     const newItems = data.ingredients.filter(i => !existingStrings.includes(i));
                     groceryList.value.push(...newItems);
-                    
+
                     logActivity('edit', `hat Zutaten für "${item.dishName}" nachgeladen`);
                 } else {
                     alert("Leider wurden keine Zutaten gefunden.");
@@ -1096,20 +1063,37 @@ createApp({
 
         const resetEvent = async () => {
             if (!confirm("WARNUNG: Dies löscht ALLE Gerichte, Einkaufslisten und Abstimmungen für ALLE Nutzer unwiderruflich! Fortfahren?")) return;
-            
+
             // 1. Sync first to get latest ETag and avoid 409
             await fetchData();
-            
+
             // 2. Clear Data
             mealSlots.value = {};
             groceryList.value = [];
             // We also reset activity log for cleanliness, though it's ephemeral
             activityLog.value = [];
-            
+
             // 3. Save (force overwrite by using current ETag from fetch)
             await saveData();
-            
+
             alert("Das Event wurde zurückgesetzt.");
+        };
+
+        // -- Calorie Helpers --
+        const getSlotCalories = (date, type) => {
+            const key = getSlotKey(date, type);
+            const slot = mealSlots.value[key];
+            if (slot && slot.approved && slot.proposals) {
+                const winner = slot.proposals.find(p => p.approved);
+                if (winner) {
+                    return winner.calories || 0;
+                }
+            }
+            return 0;
+        };
+
+        const getDailyCalories = (date) => {
+            return mealTypes.reduce((sum, type) => sum + getSlotCalories(date, type), 0);
         };
 
         return {
@@ -1127,10 +1111,9 @@ createApp({
             isCopyMode, startCopyMode, stopCopyMode, isTargetSlot, handleSlotCopyClick, duplicateSource,
             retryLoadingIngredients, loadingIngredientsFor,
             dayContainer, canScrollLeft, canScrollRight, checkScroll, scrollDays,
-                                            globalSettings, showSettingsModal, openSettings, saveSettingsPin, clearLocalData, resetEvent,
-                                            showPinEntryModal, pinEntryValue, pinError, verifyPin,
-                                            getDailyCalories, getSlotCalories,
-                                            toggleVote,
-                                            openForm, closeForm, submitProposal
-                                        };    }
+            globalSettings, showSettingsModal, openSettings, saveSettingsPin, clearLocalData, resetEvent,
+            showPinEntryModal, pinEntryValue, pinError, verifyPin,
+            getSlotCalories, getDailyCalories, toggleVote
+        };
+    }
 }).mount('#app');
