@@ -86,6 +86,12 @@
                     <span class="font-bold bg-white text-xmas-red px-2 py-0.5 rounded shadow-sm">{{ currentUser
                         }}</span>
                 </div>
+                <!-- Burger Menu (Only for Organizer) -->
+                <button v-if="currentUser === 'Organisator'" @click="openSettings"
+                    class="bg-white/20 hover:bg-white/30 text-white p-2 rounded-full transition-colors"
+                    title="Einstellungen">
+                    <i class="ph-bold ph-list text-xl"></i>
+                </button>
                 <button v-if="currentUser" @click="logout"
                     class="bg-xmas-dark hover:bg-black text-white p-2 rounded-full transition-colors"
                     title="Rolle ändern">
@@ -94,6 +100,73 @@
             </div>
             <i class="ph-fill ph-snowflake absolute -bottom-4 -right-4 text-8xl text-white opacity-20"></i>
         </header>
+
+        <!-- Settings Modal -->
+        <div v-if="showSettingsModal"
+            class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm"
+            @click.self="showSettingsModal = false">
+            <div class="snow-card w-full max-w-md p-6 relative">
+                <button @click="showSettingsModal = false" class="absolute top-4 right-4 text-gray-400 hover:text-gray-600">
+                    <i class="ph-bold ph-x text-xl"></i>
+                </button>
+
+                <h3 class="font-festive text-2xl text-gray-800 mb-6 flex items-center gap-2">
+                    <i class="ph-fill ph-gear text-gray-400"></i> Einstellungen
+                </h3>
+
+                <!-- PIN Setting -->
+                <div class="mb-6">
+                    <label class="block text-sm font-bold text-gray-700 mb-2">Organisator PIN</label>
+                    <div class="flex gap-2">
+                        <input type="password" v-model="globalSettings.organizerPin" placeholder="PIN festlegen..."
+                            class="flex-1 p-2 border border-gray-300 rounded focus:border-xmas-gold outline-none">
+                        <button @click="saveSettingsPin(globalSettings.organizerPin)" 
+                            class="bg-xmas-green text-white px-4 rounded hover:bg-green-800 transition-colors text-sm font-bold">
+                            Speichern
+                        </button>
+                    </div>
+                    <p class="text-xs text-gray-500 mt-1">
+                        Legt eine PIN fest, die beim Login als Organisator abgefragt wird. Leer lassen zum Deaktivieren.
+                    </p>
+                </div>
+
+                <!-- Danger Zone -->
+                <div class="pt-6 border-t border-gray-100">
+                    <h4 class="text-xs font-bold text-red-500 uppercase tracking-wider mb-3">Gefahrenzone</h4>
+                    <button @click="clearLocalData"
+                        class="w-full border border-red-200 text-red-500 hover:bg-red-50 p-2 rounded text-sm font-bold transition-colors flex items-center justify-center gap-2">
+                        <i class="ph-bold ph-trash"></i> Lokale Daten löschen (Logout)
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- PIN Entry Modal -->
+        <div v-if="showPinEntryModal"
+            class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
+            <div class="snow-card w-full max-w-sm p-8 text-center relative">
+                <button @click="showPinEntryModal = false" class="absolute top-4 right-4 text-gray-400 hover:text-gray-600">
+                    <i class="ph-bold ph-x text-xl"></i>
+                </button>
+
+                <div class="bg-xmas-red/10 w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4">
+                    <i class="ph-fill ph-lock-key text-3xl text-xmas-red"></i>
+                </div>
+                
+                <h3 class="font-festive text-2xl text-gray-800 mb-2">Organisator Login</h3>
+                <p class="text-sm text-gray-500 mb-6">Bitte gib die PIN ein.</p>
+
+                <input type="password" v-model="pinEntryValue" @keyup.enter="verifyPin" 
+                    class="w-32 text-center text-2xl tracking-widest p-2 border-b-2 border-gray-300 focus:border-xmas-red outline-none mb-4 bg-transparent"
+                    placeholder="••••" autofocus>
+                
+                <p v-if="pinError" class="text-xs text-red-500 font-bold mb-4 animate-pulse">Falsche PIN!</p>
+
+                <button @click="verifyPin" class="w-full bg-xmas-red text-white py-2 rounded-lg font-bold hover:bg-red-700 transition-colors">
+                    Entsperren
+                </button>
+            </div>
+        </div>
 
         <!-- Copy Mode Banner -->
         <div v-if="isCopyMode" class="fixed bottom-8 left-1/2 -translate-x-1/2 z-50 animate-fade-in">
@@ -1563,7 +1636,9 @@
                     showExportModal, exportText, openExportModal, isExporting,
                     isCopyMode, startCopyMode, stopCopyMode, isTargetSlot, handleSlotCopyClick, duplicateSource,
                     retryLoadingIngredients, loadingIngredientsFor,
-                    dayContainer, canScrollLeft, canScrollRight, checkScroll, scrollDays
+                    dayContainer, canScrollLeft, canScrollRight, checkScroll, scrollDays,
+                    globalSettings, showSettingsModal, openSettings, saveSettingsPin, clearLocalData,
+                    showPinEntryModal, pinEntryValue, pinError, verifyPin
                 };
             }
         }).mount('#app');
