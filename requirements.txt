@@ -1,4 +1,5 @@
 flask
 google-cloud-storage
+google-cloud-firestore
 gunicorn
 google-cloud-aiplatform

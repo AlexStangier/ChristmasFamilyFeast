@@ -33,7 +33,7 @@ variable "container_image" {
   default     = "gcr.io/cw-academy-sandbox-alex/christmas-planner"
 }
 
-# -- 1. GCS Bucket for JSON Data --
+# -- 1. Firestore Database & GCS Bucket --
 
 resource "random_id" "bucket_suffix" {
   byte_length = 4
@@ -42,9 +42,16 @@ resource "random_id" "bucket_suffix" {
 resource "google_storage_bucket" "data_bucket" {
   name          = "${var.project_id}-christmas-data-${random_id.bucket_suffix.hex}"
   location      = var.region
-  force_destroy = false # Prevent accidental deletion of family plans!
+  force_destroy = false 
 
   uniform_bucket_level_access = true
+}
+
+resource "google_firestore_database" "database" {
+  project     = var.project_id
+  name        = "(default)"
+  location_id = var.region
+  type        = "FIRESTORE_NATIVE"
 }
 
 # -- 2. Service Account for the App --
@@ -54,11 +61,12 @@ resource "google_service_account" "app_sa" {
   display_name = "Christmas Planner Service Account"
 }
 
-# Grant the Service Account permission to read/write objects in the bucket and AI Platform access
+# Grant the Service Account permission to read/write objects in the bucket, AI Platform access, and Firestore
 resource "google_project_iam_member" "app_sa_roles" {
   for_each = toset([
     "roles/storage.objectUser",
-    "roles/aiplatform.user"
+    "roles/aiplatform.user",
+    "roles/datastore.user"
   ])
   project = var.project_id
   role    = each.key
