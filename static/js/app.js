@@ -145,12 +145,12 @@ createApp({
 
                         // 2. AI Data: If server has it and local doesn't (or server is newer?), take server.
                         // We prefer server for heavy data to avoid re-fetching.
-                        if (sProp.recipeUrl && !lProp.recipeUrl) lProp.recipeUrl = sProp.recipeUrl;
-                        if (sProp.ingredients?.length && !lProp.ingredients?.length) lProp.ingredients = sProp.ingredients;
-                        if (sProp.instructions?.length && !lProp.instructions?.length) lProp.instructions = sProp.instructions;
-                        
-                        // 3. Approval status
-                        lProp.approved = sProp.approved;
+                                                        if (sProp.recipeUrl && !lProp.recipeUrl) lProp.recipeUrl = sProp.recipeUrl;
+                                                        if (sProp.ingredients?.length && !lProp.ingredients?.length) lProp.ingredients = sProp.ingredients;
+                                                        if (sProp.instructions?.length && !lProp.instructions?.length) lProp.instructions = sProp.instructions;
+                                                        if (sProp.calories && !lProp.calories) lProp.calories = sProp.calories;
+                                                        
+                                                        // 3. Approval status                        lProp.approved = sProp.approved;
                     } else {
                         // New proposal on server -> Add to local
                         lSlot.proposals.push(sProp);
@@ -455,12 +455,12 @@ createApp({
                         body: JSON.stringify({ dish_name: proposal.name })
                     });
                     const data = await res.json();
-                    if (data.url) proposal.recipeUrl = data.url;
-                    if (data.ingredients) proposal.ingredients = data.ingredients;
-                    if (data.instructions) proposal.instructions = data.instructions;
-                } catch (e) {
-                    console.error("Recipe fetch failed during approval", e);
-                } finally {
+                                                if (data.url) proposal.recipeUrl = data.url;
+                                                if (data.ingredients) proposal.ingredients = data.ingredients;
+                                                if (data.instructions) proposal.instructions = data.instructions;
+                                                if (data.calories) proposal.calories = data.calories;
+                                            } catch (e) {
+                                                console.error("Recipe fetch failed during approval", e);                } finally {
                     proposal.isLoadingRecipe = false;
                 }
                                 }
@@ -651,29 +651,52 @@ createApp({
             }
         };
 
-        // Update findRecipe to handle instructions
-        const findRecipe = async (date, type, proposal) => {
-            proposal.isLoadingRecipe = true;
-            try {
-                const res = await fetch('/api/ai/recipe', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ dish_name: proposal.name })
-                });
-                const data = await res.json();
-                if (data.url) proposal.recipeUrl = data.url;
-                if (data.ingredients) proposal.ingredients = data.ingredients;
-                if (data.instructions) proposal.instructions = data.instructions;
-            } catch (e) {
-                console.error("Recipe lookup failed", e);
-                // Don't alert, just fail silently in background
-            } finally {
-                proposal.isLoadingRecipe = false;
-            }
-        };
-
-        // -- Grocery List Editing --
-
+                        // Update findRecipe to handle instructions and calories
+                        const findRecipe = async (date, type, proposal) => {
+                            proposal.isLoadingRecipe = true;
+                            try {
+                                const res = await fetch('/api/ai/recipe', {
+                                    method: 'POST',
+                                    headers: { 'Content-Type': 'application/json' },
+                                    body: JSON.stringify({ dish_name: proposal.name })
+                                });
+                                const data = await res.json();
+                                if (data.url) proposal.recipeUrl = data.url;
+                                if (data.ingredients) proposal.ingredients = data.ingredients;
+                                if (data.instructions) proposal.instructions = data.instructions;
+                                if (data.calories) proposal.calories = data.calories;
+                            } catch (e) {
+                                console.error("Recipe lookup failed", e);
+                                // Don't alert, just fail silently in background
+                            } finally {
+                                proposal.isLoadingRecipe = false;
+                            }
+                        };
+        
+                        const getDailyCalories = (date) => {
+                            let total = 0;
+                            mealTypes.forEach(type => {
+                                const key = getSlotKey(date, type);
+                                const slot = mealSlots.value[key];
+                                if (slot && slot.approved && slot.proposals) {
+                                    const winner = slot.proposals.find(p => p.approved);
+                                    if (winner) {
+                                        // Use API calories or Defaults
+                                        if (winner.calories) {
+                                            total += winner.calories;
+                                        } else {
+                                            // Heuristic defaults
+                                            if (type === 'Mittagessen') total += 700;
+                                            if (type === 'Abendessen') total += 800;
+                                            if (type === 'Dessert') total += 400;
+                                        }
+                                    }
+                                }
+                            });
+                            return total;
+                        };
+        
+                        // -- Grocery List Editing --
         const startEditGrocery = (index) => {
             editingGroceryIndex.value = index;
             editingGroceryText.value = groceryList.value[index];
@@ -1046,15 +1069,15 @@ createApp({
                     const slot = mealSlots.value[slotKey];
                     if (slot) {
                         const prop = slot.proposals.find(p => p.id === item.proposalId);
-                        if (prop) {
-                            prop.ingredients = data.ingredients;
-                            prop.instructions = data.instructions;
-                            prop.recipeUrl = data.url;
-                        }
-                    }
-                    
-                    // Remove placeholder
-                    if (rawIndex > -1) groceryList.value.splice(rawIndex, 1);
+                                                        if (prop) {
+                                                            prop.ingredients = data.ingredients;
+                                                            prop.instructions = data.instructions;
+                                                            prop.recipeUrl = data.url;
+                                                            prop.calories = data.calories;
+                                                        }
+                                                    }
+                                                    
+                                                    // Remove placeholder                    if (rawIndex > -1) groceryList.value.splice(rawIndex, 1);
                     
                     // Add new ingredients
                     const existingStrings = groceryList.value.map(g => typeof g === 'string' ? g : g.text);
@@ -1105,9 +1128,9 @@ createApp({
             showExportModal, exportText, openExportModal, isExporting,
             isCopyMode, startCopyMode, stopCopyMode, isTargetSlot, handleSlotCopyClick, duplicateSource,
             retryLoadingIngredients, loadingIngredientsFor,
-            dayContainer, canScrollLeft, canScrollRight, checkScroll, scrollDays,
-            globalSettings, showSettingsModal, openSettings, saveSettingsPin, clearLocalData, resetEvent,
-            showPinEntryModal, pinEntryValue, pinError, verifyPin
-        };
-    }
-}).mount('#app');
+                                dayContainer, canScrollLeft, canScrollRight, checkScroll, scrollDays,
+                                globalSettings, showSettingsModal, openSettings, saveSettingsPin, clearLocalData, resetEvent,
+                                showPinEntryModal, pinEntryValue, pinError, verifyPin,
+                                getDailyCalories
+                            };
+                        }}).mount('#app');
