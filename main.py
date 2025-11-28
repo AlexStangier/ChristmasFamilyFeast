@@ -105,16 +105,25 @@ def get_recipe_info():
         return jsonify({"error": "No dish name provided"}), 400
 
     try:
-        model = GenerativeModel("gemini-2.5-pro")
+        model = GenerativeModel("gemini-1.5-flash")
         prompt = f"""
         For the dish "{dish_name}", please provide:
-        1. A URL to a high-quality, authentic recipe (preferably in German if the dish name is German, otherwise English).
+        1. A REAL, WORKING URL to an authentic recipe from a popular German recipe website (e.g., chefkoch.de, essen-und-trinken.de, lecker.de, küchengötter.de).
+           DO NOT make up URLs. Only provide URLs that actually exist.
+           If you cannot find a real URL, return null for the url field.
         2. A list of main ingredients needed for a grocery list (in German), calculated for 10 people (7 adults, 3 children).
         3. A brief summary of cooking instructions (3-5 steps) in German.
         
         Return ONLY valid JSON in this format:
         {{
-            "url": "https://example.com/recipe",
+            "url": "https://www.chefkoch.de/rezepte/...",
+            "ingredients": ["Ingredient 1", "Ingredient 2"],
+            "instructions": ["Step 1...", "Step 2..."]
+        }}
+        
+        If no real recipe URL can be found, use null:
+        {{
+            "url": null,
             "ingredients": ["Ingredient 1", "Ingredient 2"],
             "instructions": ["Step 1...", "Step 2..."]
         }}
