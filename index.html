@@ -197,10 +197,16 @@
                                                     </div>
                                                     <button
                                                         v-if="currentUser === 'Organisator' || currentUser === prop.proposer"
-                                                        @click.stop="deleteProposal(day.date, type, prop.id)"
-                                                        class="text-gray-400 hover:text-red-500 transition-colors p-1"
+                                                        @click="deleteProposal(day.date, type, prop.id)"
+                                                        class="opacity-0 group-hover:opacity-100 transition-opacity text-gray-400 hover:text-red-500 p-1"
                                                         title="Löschen">
-                                                        <i class="ph-bold ph-trash"></i>
+                                                        <i class="ph-bold ph-trash text-sm"></i>
+                                                    </button>
+                                                    <button v-if="type === 'Dessert' && !slotIsApproved(day.date, type)"
+                                                        @click="duplicateDessert(day.date, prop)"
+                                                        class="opacity-0 group-hover:opacity-100 transition-opacity text-gray-400 hover:text-xmas-gold p-1"
+                                                        title="Zu anderen Tagen kopieren">
+                                                        <i class="ph-bold ph-copy text-sm"></i>
                                                     </button>
                                                 </div>
                                             </div>
@@ -444,6 +450,48 @@
             </div>
         </div>
 
+        <!-- Duplicate Dessert Modal -->
+        <div v-if="showDuplicateModal"
+            class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm"
+            @click.self="closeDuplicateModal">
+            <div class="snow-card w-full max-w-md p-6 relative">
+                <button @click="closeDuplicateModal" class="absolute top-4 right-4 text-gray-400 hover:text-gray-600">
+                    <i class="ph-bold ph-x text-xl"></i>
+                </button>
+
+                <h3 class="text-xl font-bold text-gray-800 mb-4 flex items-center gap-2">
+                    <i class="ph-bold ph-copy text-xmas-gold"></i>
+                    Dessert kopieren
+                </h3>
+
+                <p class="text-sm text-gray-600 mb-4">
+                    Wähle die Tage aus, an denen du "<strong>{{ duplicateSource?.proposal.name }}</strong>" als Dessert
+                    vorschlagen möchtest:
+                </p>
+
+                <div class="space-y-2 mb-6">
+                    <label v-for="day in days" :key="day.date" v-if="day.date !== duplicateSource?.date"
+                        class="flex items-center gap-3 p-3 rounded-lg border border-gray-200 hover:border-xmas-gold hover:bg-xmas-gold/5 cursor-pointer transition-colors">
+                        <input type="checkbox" :value="day.date" v-model="selectedDuplicateDays"
+                            class="w-4 h-4 text-xmas-gold rounded focus:ring-xmas-gold accent-xmas-gold">
+                        <span class="text-sm font-medium text-gray-700">{{ formatDate(day.date) }}</span>
+                    </label>
+                </div>
+
+                <div class="flex gap-3">
+                    <button @click="closeDuplicateModal"
+                        class="flex-1 px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors">
+                        Abbrechen
+                    </button>
+                    <button @click="confirmDuplicate" :disabled="selectedDuplicateDays.length === 0"
+                        :class="selectedDuplicateDays.length === 0 ? 'opacity-50 cursor-not-allowed' : 'hover:bg-green-700'"
+                        class="flex-1 px-4 py-2 bg-xmas-green text-white rounded-lg transition-colors font-bold">
+                        Kopieren ({{ selectedDuplicateDays.length }})
+                    </button>
+                </div>
+            </div>
+        </div>
+
         <!-- Activity Log Tab -->
         <div class="fixed bottom-0 right-4 z-50">
             <!-- Collapsed Tab -->
@@ -550,6 +598,9 @@
                 const newGroceryItem = ref("");
                 const activityLog = ref([]);
                 const showActivityLog = ref(false);
+                const showDuplicateModal = ref(false);
+                const duplicateSource = ref(null);
+                const selectedDuplicateDays = ref([]);
 
                 // Sync State
                 const syncStatus = ref('saved'); // 'saved', 'syncing', 'error'
@@ -975,6 +1026,49 @@
                     }
                 };
 
+                // -- Duplicate Dessert --
+
+                const duplicateDessert = (sourceDate, proposal) => {
+                    duplicateSource.value = { date: sourceDate, proposal };
+                    selectedDuplicateDays.value = [];
+                    showDuplicateModal.value = true;
+                };
+
+                const confirmDuplicate = () => {
+                    if (!duplicateSource.value || selectedDuplicateDays.value.length === 0) return;
+
+                    const { proposal } = duplicateSource.value;
+
+                    selectedDuplicateDays.value.forEach(targetDate => {
+                        const key = getSlotKey(targetDate, 'Dessert');
+                        if (!mealSlots.value[key]) mealSlots.value[key] = { date: targetDate, type: 'Dessert', proposals: [] };
+
+                        // Create a copy of the proposal
+                        const newProposal = {
+                            id: crypto.randomUUID(),
+                            name: proposal.name,
+                            proposer: currentUser.value,
+                            votes: [currentUser.value],
+                            recipeUrl: proposal.recipeUrl,
+                            ingredients: proposal.ingredients ? [...proposal.ingredients] : [],
+                            instructions: proposal.instructions ? [...proposal.instructions] : []
+                        };
+
+                        mealSlots.value[key].proposals.push(newProposal);
+                        logActivity('add', `hat "${proposal.name}" für Dessert am ${formatDate(targetDate)} kopiert`);
+                    });
+
+                    showDuplicateModal.value = false;
+                    duplicateSource.value = null;
+                    selectedDuplicateDays.value = [];
+                };
+
+                const closeDuplicateModal = () => {
+                    showDuplicateModal.value = false;
+                    duplicateSource.value = null;
+                    selectedDuplicateDays.value = [];
+                };
+
                 // -- Activity Log --
 
                 const logActivity = (type, message) => {
@@ -1054,7 +1148,8 @@
                     previewData, isLoadingPreview,
                     editingGroceryIndex, editingGroceryText, newGroceryItem,
                     startEditGrocery, saveGroceryEdit, cancelGroceryEdit, removeGroceryItem, addGroceryItem,
-                    activityLog, showActivityLog, formatLogTime, mergedGroceryList
+                    activityLog, showActivityLog, formatLogTime, mergedGroceryList,
+                    showDuplicateModal, duplicateSource, selectedDuplicateDays, duplicateDessert, confirmDuplicate, closeDuplicateModal
                 };
             }
         }).mount('#app');
