@@ -262,10 +262,42 @@
                 </div>
                 <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
                     <div v-for="(item, index) in groceryList" :key="index"
-                        class="flex items-center gap-2 p-2 bg-white rounded border border-gray-100 shadow-sm">
+                        class="flex items-center gap-2 p-2 bg-white rounded border border-gray-100 shadow-sm group">
                         <input type="checkbox"
-                            class="w-4 h-4 text-xmas-green rounded focus:ring-xmas-green accent-xmas-green">
-                        <span class="text-gray-700">{{ item }}</span>
+                            class="w-4 h-4 text-xmas-green rounded focus:ring-xmas-green accent-xmas-green shrink-0">
+                        <input v-if="editingGroceryIndex === index" v-model="editingGroceryText"
+                            @keyup.enter="saveGroceryEdit(index)" @keyup.esc="cancelGroceryEdit"
+                            class="flex-1 text-sm p-1 border border-xmas-gold rounded focus:outline-none focus:ring-1 focus:ring-xmas-gold">
+                        <span v-else class="flex-1 text-gray-700 text-sm">{{ item }}</span>
+                        <div class="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                            <button v-if="editingGroceryIndex !== index" @click="startEditGrocery(index)"
+                                class="text-gray-400 hover:text-xmas-gold transition-colors p-1" title="Bearbeiten">
+                                <i class="ph-bold ph-pencil-simple text-sm"></i>
+                            </button>
+                            <button v-if="editingGroceryIndex === index" @click="saveGroceryEdit(index)"
+                                class="text-xmas-green hover:text-green-700 transition-colors p-1" title="Speichern">
+                                <i class="ph-bold ph-check text-sm"></i>
+                            </button>
+                            <button v-if="editingGroceryIndex === index" @click="cancelGroceryEdit"
+                                class="text-gray-400 hover:text-gray-600 transition-colors p-1" title="Abbrechen">
+                                <i class="ph-bold ph-x text-sm"></i>
+                            </button>
+                            <button @click="removeGroceryItem(index)"
+                                class="text-gray-400 hover:text-red-500 transition-colors p-1" title="Löschen">
+                                <i class="ph-bold ph-trash text-sm"></i>
+                            </button>
+                        </div>
+                    </div>
+                    <!-- Add new item -->
+                    <div
+                        class="flex items-center gap-2 p-2 bg-gray-50 rounded border-2 border-dashed border-gray-200 hover:border-xmas-green transition-colors">
+                        <i class="ph-bold ph-plus text-gray-400 shrink-0"></i>
+                        <input v-model="newGroceryItem" @keyup.enter="addGroceryItem" placeholder="Neues Element..."
+                            class="flex-1 text-sm bg-transparent outline-none text-gray-700 placeholder-gray-400">
+                        <button v-if="newGroceryItem.trim()" @click="addGroceryItem"
+                            class="text-xmas-green hover:text-green-700 transition-colors p-1" title="Hinzufügen">
+                            <i class="ph-bold ph-check"></i>
+                        </button>
                     </div>
                 </div>
             </div>
@@ -470,6 +502,9 @@
                 const selectedRecipeProp = ref(null);
                 const previewData = ref(null);
                 const isLoadingPreview = ref(false);
+                const editingGroceryIndex = ref(null);
+                const editingGroceryText = ref("");
+                const newGroceryItem = ref("");
 
                 // Sync State
                 const syncStatus = ref('saved'); // 'saved', 'syncing', 'error'
@@ -827,6 +862,36 @@
                     }
                 };
 
+                // -- Grocery List Editing --
+
+                const startEditGrocery = (index) => {
+                    editingGroceryIndex.value = index;
+                    editingGroceryText.value = groceryList.value[index];
+                };
+
+                const saveGroceryEdit = (index) => {
+                    if (editingGroceryText.value.trim()) {
+                        groceryList.value[index] = editingGroceryText.value.trim();
+                    }
+                    cancelGroceryEdit();
+                };
+
+                const cancelGroceryEdit = () => {
+                    editingGroceryIndex.value = null;
+                    editingGroceryText.value = "";
+                };
+
+                const removeGroceryItem = (index) => {
+                    groceryList.value.splice(index, 1);
+                };
+
+                const addGroceryItem = () => {
+                    if (newGroceryItem.value.trim()) {
+                        groceryList.value.push(newGroceryItem.value.trim());
+                        newGroceryItem.value = "";
+                    }
+                };
+
                 return {
                     currentUser, roles, days, mealTypes, login, logout,
                     getRoleIcon, formatDate, isSignatureDish, getProposals, hasVotedFor, isLeading, getProposalClass,
@@ -834,7 +899,9 @@
                     showProposalModal, activeSlot, proposalSearchQuery, suggestions, isSearching,
                     openProposalModal, closeProposalModal, debouncedSearch, selectSuggestion, submitProposalFromModal,
                     selectedRecipeProp, openRecipeModal, closeRecipeModal, withdrawProposal,
-                    previewData, isLoadingPreview
+                    previewData, isLoadingPreview,
+                    editingGroceryIndex, editingGroceryText, newGroceryItem,
+                    startEditGrocery, saveGroceryEdit, cancelGroceryEdit, removeGroceryItem, addGroceryItem
                 };
             }
         }).mount('#app');
