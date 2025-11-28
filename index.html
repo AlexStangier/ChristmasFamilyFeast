@@ -671,7 +671,13 @@
                     if (!props.length) return false;
                     const maxVotes = Math.max(...props.map(p => (p.votes || []).length));
                     const proposalVotes = (proposal.votes || []).length;
-                    return maxVotes > 0 && proposalVotes === maxVotes && proposalVotes > 0;
+
+                    // Must have max votes and at least 1 vote
+                    if (maxVotes === 0 || proposalVotes !== maxVotes) return false;
+
+                    // Tiebreaker: only the first proposal with max votes gets #1
+                    const firstWithMaxVotes = props.find(p => (p.votes || []).length === maxVotes);
+                    return firstWithMaxVotes && firstWithMaxVotes.id === proposal.id;
                 };
 
                 const getProposalClass = (proposal, date, type) => {
@@ -894,6 +900,7 @@
                         findRecipe(date, type, newProp);
                     }
 
+                    logActivity('add', `hat "${name}" für ${type} am ${formatDate(date)} vorgeschlagen`);
                     closeProposalModal();
                 };
 

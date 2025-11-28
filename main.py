@@ -93,6 +93,9 @@ if PROJECT_ID and REGION:
     except Exception as e:
         logging.error(f"Failed to initialize Vertex AI: {e}")
 
+# Recipe cache (in-memory)
+recipe_cache = {}
+
 @app.route('/api/ai/recipe', methods=['POST'])
 def get_recipe_info():
     """Uses Gemini to find a recipe URL, ingredients, and instructions."""
@@ -103,6 +106,12 @@ def get_recipe_info():
     dish_name = data.get('dish_name')
     if not dish_name:
         return jsonify({"error": "No dish name provided"}), 400
+
+    # Check cache first
+    cache_key = dish_name.lower().strip()
+    if cache_key in recipe_cache:
+        logging.info(f"Cache hit for: {dish_name}")
+        return jsonify(recipe_cache[cache_key])
 
     try:
         model = GenerativeModel("gemini-2.5-flash")
@@ -131,6 +140,11 @@ def get_recipe_info():
         response = model.generate_content(prompt)
         text = response.text.replace('```json', '').replace('```', '').strip()
         result = json.loads(text)
+        
+        # Cache the result
+        recipe_cache[cache_key] = result
+        logging.info(f"Cached recipe for: {dish_name}")
+        
         return jsonify(result)
     except Exception as e:
         logging.error(f"AI Error: {e}")
