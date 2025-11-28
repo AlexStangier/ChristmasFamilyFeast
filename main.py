@@ -88,7 +88,7 @@ if GEMINI_API_KEY:
 
 @app.route('/api/ai/recipe', methods=['POST'])
 def get_recipe_info():
-    """Uses Gemini to find a recipe URL and ingredients."""
+    """Uses Gemini to find a recipe URL, ingredients, and instructions."""
     if not GEMINI_API_KEY:
         return jsonify({"error": "AI service not configured"}), 503
 
@@ -103,21 +103,47 @@ def get_recipe_info():
         For the dish "{dish_name}", please provide:
         1. A URL to a high-quality, authentic recipe (preferably in German if the dish name is German, otherwise English).
         2. A list of main ingredients needed for a grocery list (in German), calculated for 10 people (7 adults, 3 children).
+        3. A brief summary of cooking instructions (3-5 steps) in German.
         
         Return ONLY valid JSON in this format:
         {{
             "url": "https://example.com/recipe",
-            "ingredients": ["Ingredient 1", "Ingredient 2"]
+            "ingredients": ["Ingredient 1", "Ingredient 2"],
+            "instructions": ["Step 1...", "Step 2..."]
         }}
         """
         response = model.generate_content(prompt)
-        # Clean up potential markdown code blocks in response
         text = response.text.replace('```json', '').replace('```', '').strip()
         result = json.loads(text)
         return jsonify(result)
     except Exception as e:
         logging.error(f"AI Error: {e}")
         return jsonify({"error": "Failed to fetch recipe info"}), 500
+
+@app.route('/api/ai/suggest', methods=['POST'])
+def suggest_dishes():
+    """Uses Gemini to suggest dishes based on a query."""
+    if not GEMINI_API_KEY:
+        return jsonify({"error": "AI service not configured"}), 503
+
+    data = request.json
+    query = data.get('query')
+    if not query:
+        return jsonify({"error": "No query provided"}), 400
+
+    try:
+        model = genai.GenerativeModel('gemini-pro')
+        prompt = f"""
+        Suggest 5 popular Christmas or festive dishes (in German) that match the search term "{query}".
+        Return ONLY a JSON array of strings, e.g.: ["Dish 1", "Dish 2"]
+        """
+        response = model.generate_content(prompt)
+        text = response.text.replace('```json', '').replace('```', '').strip()
+        suggestions = json.loads(text)
+        return jsonify({"suggestions": suggestions})
+    except Exception as e:
+        logging.error(f"AI Suggest Error: {e}")
+        return jsonify({"error": "Failed to fetch suggestions"}), 500
 
 if __name__ == "__main__":
     # Cloud Run injects the PORT environment variable

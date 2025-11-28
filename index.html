@@ -174,17 +174,20 @@
                                             :class="getProposalClass(prop, day.date, type)">
 
                                             <i v-if="isLeading(prop, day.date, type)"
-                                                class="ph-fill ph-crown-simple absolute -top-2 -right-2 text-xmas-gold text-xl drop-shadow-sm bg-white rounded-full p-0.5"></i>
+                                                class="ph-fill ph-crown-simple absolute -top-2 -right-2 text-xmas-gold text-xl drop-shadow-sm bg-white rounded-full p-0.5 z-10"></i>
+                                            <div v-if="isLeading(prop, day.date, type)"
+                                                class="absolute -top-2 -right-2 bg-xmas-gold text-white text-[10px] font-bold px-1.5 rounded-full z-20 shadow-sm border border-white">
+                                                #1</div>
 
                                             <div class="flex justify-between items-start">
                                                 <div class="flex-1">
                                                     <p class="font-bold text-gray-800 leading-tight">{{ prop.name }}</p>
                                                     <p class="text-xs text-gray-500 mt-0.5">von {{ prop.proposer }}</p>
-                                                    <a v-if="prop.recipeUrl" :href="prop.recipeUrl" target="_blank"
-                                                        class="text-xs text-xmas-red hover:underline flex items-center gap-1 mt-1"
-                                                        @click.stop>
-                                                        <i class="ph-bold ph-link"></i> Rezept ansehen
-                                                    </a>
+                                                    <button v-if="prop.recipeUrl || prop.ingredients"
+                                                        @click.stop="openRecipeModal(prop)"
+                                                        class="text-xs text-xmas-red hover:underline flex items-center gap-1 mt-1">
+                                                        <i class="ph-bold ph-book-open"></i> Rezept ansehen
+                                                    </button>
                                                 </div>
                                                 <div class="flex flex-col items-end gap-1">
                                                     <div class="text-center min-w-[30px]">
@@ -211,7 +214,7 @@
                                                     {{ hasVotedFor(prop) ? 'Gewählt' : 'Wählen' }}
                                                 </button>
                                                 <button v-if="!prop.recipeUrl && !prop.isLoadingRecipe"
-                                                    @click="findRecipe(day.date, type, prop)"
+                                                    @click.stop="findRecipe(day.date, type, prop)"
                                                     class="px-2 bg-xmas-gold/10 text-xmas-gold hover:bg-xmas-gold/20 rounded transition-colors"
                                                     title="Rezept suchen">
                                                     <i class="ph-bold ph-magic-wand"></i>
@@ -235,22 +238,10 @@
                                         <p class="text-xs italic">Noch keine Pläne.</p>
                                     </div>
 
-                                    <button v-if="!showForm[day.date + type]" @click="openForm(day.date, type)"
+                                    <button @click="openProposalModal(day.date, type)"
                                         class="mt-auto w-full py-2 border-2 border-dashed border-gray-200 rounded-lg text-gray-400 text-sm hover:border-xmas-green hover:text-xmas-green transition-all flex items-center justify-center gap-1">
                                         <i class="ph-bold ph-plus"></i> Vorschlagen
                                     </button>
-
-                                    <div v-if="showForm[day.date + type]"
-                                        class="mt-auto bg-gray-50 p-2 rounded-lg border border-gray-200 animate-fade-in">
-                                        <input v-model="newProposalText" placeholder="Gericht Name..."
-                                            class="w-full text-sm p-1.5 rounded border border-gray-300 mb-2 focus:border-xmas-green focus:ring-1 focus:ring-xmas-green outline-none">
-                                        <div class="flex gap-2">
-                                            <button @click="submitProposal(day.date, type)"
-                                                class="flex-1 bg-xmas-green text-white text-xs py-1.5 rounded hover:bg-green-800">Hinzufügen</button>
-                                            <button @click="closeForm(day.date, type)"
-                                                class="bg-gray-200 text-gray-600 text-xs px-2 rounded hover:bg-gray-300">✕</button>
-                                        </div>
-                                    </div>
                                 </div>
 
                             </div>
@@ -280,6 +271,117 @@
             </div>
         </section>
 
+        <!-- Proposal Modal -->
+        <div v-if="showProposalModal"
+            class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm"
+            @click.self="closeProposalModal">
+            <div class="snow-card w-full max-w-md p-6 relative">
+                <button @click="closeProposalModal" class="absolute top-4 right-4 text-gray-400 hover:text-gray-600">
+                    <i class="ph-bold ph-x text-xl"></i>
+                </button>
+
+                <h3 class="font-festive text-2xl text-xmas-green mb-4">Gericht vorschlagen</h3>
+
+                <!-- Search -->
+                <div class="mb-4 relative">
+                    <div
+                        class="flex items-center border border-gray-300 rounded-lg overflow-hidden focus-within:ring-2 focus-within:ring-xmas-gold">
+                        <input v-model="proposalSearchQuery" @input="debouncedSearch"
+                            placeholder="Was möchtest du essen? (z.B. Ente, Pasta...)"
+                            class="w-full p-3 outline-none text-gray-700">
+                        <div v-if="isSearching" class="pr-3 text-gray-400">
+                            <i class="ph-bold ph-spinner animate-spin"></i>
+                        </div>
+                    </div>
+
+                    <!-- Suggestions -->
+                    <div v-if="suggestions.length > 0"
+                        class="absolute top-full left-0 w-full bg-white border border-gray-200 rounded-lg shadow-lg mt-1 z-10 max-h-48 overflow-y-auto">
+                        <button v-for="sugg in suggestions" :key="sugg" @click="selectSuggestion(sugg)"
+                            class="w-full text-left p-2 hover:bg-gray-50 text-sm text-gray-700 border-b border-gray-50 last:border-0">
+                            {{ sugg }}
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Custom Entry / Selected -->
+                <div v-if="proposalSearchQuery" class="flex flex-col gap-3">
+                    <button @click="submitProposalFromModal(proposalSearchQuery)"
+                        class="w-full bg-xmas-green text-white py-3 rounded-lg font-bold hover:bg-green-800 transition-colors flex items-center justify-center gap-2">
+                        <i class="ph-bold ph-plus-circle"></i> "{{ proposalSearchQuery }}" hinzufügen
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Recipe Modal -->
+        <div v-if="selectedRecipeProp"
+            class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm"
+            @click.self="closeRecipeModal">
+            <div class="snow-card w-full max-w-2xl p-0 relative flex flex-col max-h-[90vh]">
+                <!-- Header -->
+                <div class="p-6 border-b border-gray-100 flex justify-between items-start bg-gray-50 rounded-t-xl">
+                    <div>
+                        <h3 class="font-festive text-3xl text-xmas-red">{{ selectedRecipeProp.name }}</h3>
+                        <p class="text-sm text-gray-500">Vorgeschlagen von {{ selectedRecipeProp.proposer }}</p>
+                    </div>
+                    <button @click="closeRecipeModal" class="text-gray-400 hover:text-gray-600">
+                        <i class="ph-bold ph-x text-xl"></i>
+                    </button>
+                </div>
+
+                <!-- Content -->
+                <div class="p-6 overflow-y-auto hide-scroll">
+                    <div class="grid md:grid-cols-2 gap-8">
+                        <!-- Ingredients -->
+                        <div>
+                            <h4 class="font-bold text-gray-800 mb-3 flex items-center gap-2">
+                                <i class="ph-fill ph-basket text-xmas-gold"></i> Zutaten
+                            </h4>
+                            <ul class="space-y-2">
+                                <li v-for="(ing, i) in (selectedRecipeProp.ingredients || [])" :key="i"
+                                    class="flex items-start gap-2 text-sm text-gray-600">
+                                    <span class="w-1.5 h-1.5 rounded-full bg-xmas-green mt-1.5 shrink-0"></span>
+                                    {{ ing }}
+                                </li>
+                                <li v-if="!selectedRecipeProp.ingredients" class="text-sm text-gray-400 italic">Keine
+                                    Zutaten geladen.</li>
+                            </ul>
+                        </div>
+
+                        <!-- Instructions -->
+                        <div>
+                            <h4 class="font-bold text-gray-800 mb-3 flex items-center gap-2">
+                                <i class="ph-fill ph-cooking-pot text-xmas-red"></i> Zubereitung
+                            </h4>
+                            <ol class="space-y-3">
+                                <li v-for="(step, i) in (selectedRecipeProp.instructions || [])" :key="i"
+                                    class="flex gap-3 text-sm text-gray-600">
+                                    <span class="font-bold text-xmas-gold shrink-0">{{ i + 1 }}.</span>
+                                    {{ step }}
+                                </li>
+                                <li v-if="!selectedRecipeProp.instructions" class="text-sm text-gray-400 italic">Keine
+                                    Anleitung verfügbar.</li>
+                            </ol>
+                        </div>
+                    </div>
+
+                    <div class="mt-8 flex flex-wrap gap-3">
+                        <a v-if="selectedRecipeProp.recipeUrl" :href="selectedRecipeProp.recipeUrl" target="_blank"
+                            class="bg-gray-100 hover:bg-gray-200 text-gray-700 px-4 py-2 rounded-lg text-sm font-medium transition-colors flex items-center gap-2">
+                            <i class="ph-bold ph-link"></i> Originalrezept öffnen
+                        </a>
+
+                        <button v-if="currentUser === selectedRecipeProp.proposer && !selectedRecipeProp.approved"
+                            @click="withdrawProposal(selectedRecipeProp)"
+                            class="ml-auto text-red-500 hover:bg-red-50 px-4 py-2 rounded-lg text-sm font-medium transition-colors flex items-center gap-2 border border-red-200">
+                            <i class="ph-bold ph-trash"></i> Vorschlag zurückziehen
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
         <!-- Sync Footer -->
         <footer class="mt-auto py-6 w-full max-w-6xl flex justify-between items-center text-sm font-festive text-xl">
             <div class="flex items-center gap-2 text-gray-500">
@@ -308,6 +410,14 @@
                 const groceryList = ref([]);
                 const newProposalText = ref("");
                 const showForm = ref({});
+
+                // Modal State
+                const showProposalModal = ref(false);
+                const activeSlot = ref(null);
+                const proposalSearchQuery = ref("");
+                const suggestions = ref([]);
+                const isSearching = ref(false);
+                const selectedRecipeProp = ref(null);
 
                 // Sync State
                 const syncStatus = ref('saved'); // 'saved', 'syncing', 'error'
@@ -480,25 +590,6 @@
                     else target.votes.push(currentUser.value);
                 };
 
-                const findRecipe = async (date, type, proposal) => {
-                    proposal.isLoadingRecipe = true;
-                    try {
-                        const res = await fetch('/api/ai/recipe', {
-                            method: 'POST',
-                            headers: { 'Content-Type': 'application/json' },
-                            body: JSON.stringify({ dish_name: proposal.name })
-                        });
-                        const data = await res.json();
-                        if (data.url) proposal.recipeUrl = data.url;
-                        if (data.ingredients) proposal.ingredients = data.ingredients;
-                    } catch (e) {
-                        console.error("Recipe lookup failed", e);
-                        alert("Konnte kein Rezept finden.");
-                    } finally {
-                        proposal.isLoadingRecipe = false;
-                    }
-                };
-
                 const approveDish = (date, type, proposal) => {
                     const key = getSlotKey(date, type);
                     if (mealSlots.value[key]) {
@@ -534,11 +625,120 @@
                     }
                 };
 
+                // -- Modal Logic --
+
+                const openProposalModal = (date, type) => {
+                    activeSlot.value = { date, type };
+                    proposalSearchQuery.value = "";
+                    suggestions.value = [];
+                    showProposalModal.value = true;
+                };
+
+                const closeProposalModal = () => {
+                    showProposalModal.value = false;
+                    activeSlot.value = null;
+                };
+
+                let searchTimeout;
+                const debouncedSearch = () => {
+                    if (searchTimeout) clearTimeout(searchTimeout);
+                    if (!proposalSearchQuery.value || proposalSearchQuery.value.length < 2) {
+                        suggestions.value = [];
+                        return;
+                    }
+
+                    searchTimeout = setTimeout(async () => {
+                        isSearching.value = true;
+                        try {
+                            const res = await fetch('/api/ai/suggest', {
+                                method: 'POST',
+                                headers: { 'Content-Type': 'application/json' },
+                                body: JSON.stringify({ query: proposalSearchQuery.value })
+                            });
+                            const data = await res.json();
+                            suggestions.value = data.suggestions || [];
+                        } catch (e) {
+                            console.error(e);
+                        } finally {
+                            isSearching.value = false;
+                        }
+                    }, 500);
+                };
+
+                const selectSuggestion = (sugg) => {
+                    proposalSearchQuery.value = sugg;
+                    suggestions.value = [];
+                };
+
+                const submitProposalFromModal = (name) => {
+                    if (!activeSlot.value || !currentUser.value) return;
+                    const { date, type } = activeSlot.value;
+                    const key = getSlotKey(date, type);
+
+                    if (!mealSlots.value[key]) mealSlots.value[key] = { date, type, proposals: [] };
+
+                    mealSlots.value[key].proposals.push({
+                        id: crypto.randomUUID(),
+                        name: name,
+                        proposer: currentUser.value,
+                        votes: [currentUser.value]
+                    });
+
+                    // Auto-fetch recipe info in background
+                    const newProp = mealSlots.value[key].proposals[mealSlots.value[key].proposals.length - 1];
+                    findRecipe(date, type, newProp);
+
+                    closeProposalModal();
+                };
+
+                const openRecipeModal = (prop) => {
+                    selectedRecipeProp.value = prop;
+                };
+
+                const closeRecipeModal = () => {
+                    selectedRecipeProp.value = null;
+                };
+
+                const withdrawProposal = (prop) => {
+                    // Find slot
+                    for (const key in mealSlots.value) {
+                        const slot = mealSlots.value[key];
+                        if (slot.proposals.some(p => p.id === prop.id)) {
+                            deleteProposal(slot.date, slot.type, prop.id);
+                            closeRecipeModal();
+                            return;
+                        }
+                    }
+                };
+
+                // Update findRecipe to handle instructions
+                const findRecipe = async (date, type, proposal) => {
+                    proposal.isLoadingRecipe = true;
+                    try {
+                        const res = await fetch('/api/ai/recipe', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ dish_name: proposal.name })
+                        });
+                        const data = await res.json();
+                        if (data.url) proposal.recipeUrl = data.url;
+                        if (data.ingredients) proposal.ingredients = data.ingredients;
+                        if (data.instructions) proposal.instructions = data.instructions;
+                    } catch (e) {
+                        console.error("Recipe lookup failed", e);
+                        // Don't alert, just fail silently in background
+                    } finally {
+                        proposal.isLoadingRecipe = false;
+                    }
+                };
+
                 return {
                     currentUser, roles, days, mealTypes, login, logout,
                     getRoleIcon, formatDate, isSignatureDish, getProposals, hasVotedFor, isLeading, getProposalClass,
-                    showForm, newProposalText, openForm, closeForm, submitProposal, toggleVote,
-                    syncStatus, syncMessage, groceryList, findRecipe, approveDish, slotIsApproved, deleteProposal
+                    syncStatus, syncMessage, groceryList, findRecipe, approveDish, slotIsApproved, deleteProposal,
+                    showProposalModal, activeSlot, proposalSearchQuery, suggestions, isSearching,
+                    openProposalModal, closeProposalModal, debouncedSearch, selectSuggestion, submitProposalFromModal,
+                    selectedRecipeProp, openRecipeModal, closeRecipeModal, withdrawProposal
                 };
             }
         }).mount('#app');
