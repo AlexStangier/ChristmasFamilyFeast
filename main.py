@@ -335,22 +335,38 @@ def categorize_groceries():
         Items:
         {json.dumps(items, ensure_ascii=False)}
 
-        Return a JSON object where keys are categories and values are lists of the original item strings belonging to that category.
+        Return ONLY a JSON object where keys are categories and values are lists of the original item strings belonging to that category.
+        Do not include any markdown formatting or explanation.
         Example:
         {{
             "Obst & Gemüse": ["Äpfel", "Salat"],
             "Vorratsschrank": ["Mehl", "Salz"]
         }}
-        Do not change the item names/strings, just group them.
         """
         
         response = model.generate_content(prompt)
-        text = response.text.replace('```json', '').replace('```', '').strip()
-        categorized = json.loads(text)
+        text = response.text
+        
+        # Clean up potential markdown code blocks
+        if "```json" in text:
+            text = text.split("```json")[1].split("```")[0]
+        elif "```" in text:
+            text = text.split("```")[1].split("```")[0]
+            
+        text = text.strip()
+        
+        try:
+            categorized = json.loads(text)
+        except json.JSONDecodeError:
+            logging.error(f"Failed to parse AI response: {text}")
+            # Fallback: Put everything in "Haushalt & Sonstiges" to avoid crash
+            return jsonify({"Haushalt & Sonstiges": items})
+
         return jsonify(categorized)
     except Exception as e:
         logging.error(f"AI Categorize Error: {e}")
-        return jsonify({"error": "Failed to categorize"}), 500
+        # Return proper error response instead of 500 crash
+        return jsonify({"error": "Failed to categorize", "details": str(e)}), 500
 
 if __name__ == "__main__":
     # Cloud Run injects the PORT environment variable
