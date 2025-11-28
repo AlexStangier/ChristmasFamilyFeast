@@ -1465,26 +1465,74 @@
 
                 // -- Smart Grocery List Merging --
 
+                const normalizeUnit = (u) => {
+                    if (!u) return '';
+                    let unit = u.toLowerCase().replace('.', '').trim();
+                    // Common unit normalizations
+                    const map = {
+                        'stk': '', 'stück': '', 'st': '',
+                        'g': 'g', 'gramm': 'g',
+                        'kg': 'kg', 'kilogramm': 'kg',
+                        'ml': 'ml', 'milliliter': 'ml',
+                        'l': 'l', 'liter': 'l',
+                        'el': 'EL', 'esslöffel': 'EL',
+                        'tl': 'TL', 'teelöffel': 'TL',
+                        'pck': 'Pck', 'packung': 'Pck', 'päckchen': 'Pck',
+                        'dose': 'Dose', 'dosen': 'Dose',
+                        'glas': 'Glas', 'gläser': 'Glas',
+                        'bund': 'Bund'
+                    };
+                    return map[unit] !== undefined ? map[unit] : u;
+                };
+
+                const normalizeName = (n) => {
+                    let name = n.trim();
+                    // Handle common pluralizations/variations manually for best results
+                    const lower = name.toLowerCase();
+                    if (lower === 'eier' || lower === 'ei') return 'Ei';
+                    if (lower === 'zwiebeln' || lower === 'zwiebel') return 'Zwiebel';
+                    if (lower === 'kartoffeln' || lower === 'kartoffel') return 'Kartoffel';
+                    if (lower === 'karotten' || lower === 'karotte' || lower === 'möhren') return 'Möhren';
+                    if (lower === 'tomaten' || lower === 'tomate') return 'Tomate';
+                    if (lower === 'äpfel' || lower === 'apfel') return 'Apfel';
+                    return name;
+                };
+
                 const parseIngredient = (item) => {
                     const rawText = typeof item === 'string' ? item : item.text;
                     const source = typeof item === 'string' ? null : item.source;
                     
-                    // Try to extract quantity and unit from ingredient string
-                    // Patterns: "500g Mehl", "2 Zwiebeln", "1 EL Öl", "Salz"
-                    const match = rawText.match(/^([\d.,]+)\s*([a-zA-ZäöüÄÖÜß]*)?\s+(.+)$/);
+                    // Regex to extract quantity, unit, and name
+                    // Supports: "500g Mehl", "1.5 kg Kartoffeln", "2 Stk Eier", "Salz", "1/2 TL Zimt"
+                    // Added support for fractions roughly by catching simple numbers first
+                    
+                    // Clean text first
+                    let cleanText = rawText.trim();
+                    
+                    // Match: Start with Number (float/int/comma), optional whitespace, optional unit, whitespace, rest is name
+                    // We allow unit to contain dots (Stk.)
+                    const match = cleanText.match(/^([\d.,]+)\s*([a-zA-ZäöüÄÖÜß\./]*)\s+(.+)$/);
+                    
                     if (match) {
+                        const qtyStr = match[1].replace(',', '.');
+                        const quantity = parseFloat(qtyStr);
+                        const rawUnit = match[2];
+                        const rawName = match[3];
+
                         return {
-                            quantity: parseFloat(match[1].replace(',', '.')),
-                            unit: match[2] || '',
-                            name: match[3].trim(),
+                            quantity: isNaN(quantity) ? null : quantity,
+                            unit: normalizeUnit(rawUnit),
+                            name: normalizeName(rawName),
+                            originalName: rawName, // Keep for display if needed? No, we reconstruct.
                             sources: source ? [source] : []
                         };
                     }
-                    // No quantity found, treat as single item
+                    
+                    // Fallback for no-quantity items "Salz"
                     return { 
                         quantity: null, 
                         unit: '', 
-                        name: rawText.trim(),
+                        name: normalizeName(cleanText),
                         sources: source ? [source] : []
                     };
                 };
@@ -1505,13 +1553,16 @@
                         // Skip empty strings
                         if (!parsed.name) return;
 
+                        // Create key based on normalized name and unit
                         const key = `${parsed.name.toLowerCase()}|${parsed.unit.toLowerCase()}`;
 
                         if (merged[key]) {
-                            if (parsed.quantity !== null && merged[key].quantity !== null) {
-                                merged[key].quantity += parsed.quantity;
-                            } else if (parsed.quantity !== null) {
-                                merged[key].quantity = parsed.quantity;
+                            if (parsed.quantity !== null) {
+                                if (merged[key].quantity !== null) {
+                                    merged[key].quantity += parsed.quantity;
+                                } else {
+                                    merged[key].quantity = parsed.quantity;
+                                }
                             }
                             // Merge sources
                             if (parsed.sources.length) {
@@ -1527,13 +1578,19 @@
                     // Convert merged ingredients to rich objects
                     const ingredients = Object.values(merged).map(item => {
                         let text;
+                        // Reconstruct display string
+                        // e.g. "10 Ei" -> "10 Eier" adjustment for display could go here, but "10 Ei" is understandable.
+                        // Let's just use the normalized name.
+                        
                         if (item.quantity !== null) {
-                            const qty = item.quantity % 1 === 0 ? item.quantity : item.quantity.toFixed(1);
-                            text = `${qty}${item.unit ? item.unit : ''} ${item.name}`;
+                            // Format quantity: 1.5 instead of 1.500000000002
+                            const qty = parseFloat(item.quantity.toFixed(2)); 
+                            const unitStr = item.unit ? ' ' + item.unit : '';
+                            text = `${qty}${unitStr} ${item.name}`;
                         } else {
                             text = item.name;
                         }
-                        // Return unified structure
+                        
                         return { 
                             text, 
                             isPlaceholder: false, 
@@ -1555,8 +1612,7 @@
 
                 const openExportModal = async () => {
                     const items = getMergedItems();
-                    // Create a unique key for the current state of ingredients
-                    // We use text + quantity + unit + source to detect changes
+                    
                     const currentKey = JSON.stringify(items.map(i => ({
                         t: i.text, 
                         q: i.quantity, 
@@ -1585,7 +1641,7 @@
                         });
                         const categories = await res.json();
                         
-                        let formattedText = "";
+                        let formattedText = "🎄 Weihnachts-Einkaufsliste\n";
                         
                         // Define order and emojis
                         const categoryMap = {
@@ -1603,25 +1659,27 @@
 
                         order.forEach(cat => {
                             if (categories[cat] && categories[cat].length > 0) {
-                                formattedText += `\n## ${categoryMap[cat]}\n`;
+                                formattedText += `\n${categoryMap[cat]}\n`; // Clean Header
                                 categories[cat].forEach(text => {
                                     const item = findItem(text);
-                                    let line = `- [ ] ${text}`;
+                                    let line = `• ${text}`; // Bullet point instead of checkbox
                                     if (item && item.sources && item.sources.length > 0) {
-                                        line += `   (für ${item.sources.join(', ')})`;
+                                        // Cleaner source display
+                                        // Only show first 2 sources to avoid clutter
+                                        const sourceStr = item.sources.slice(0, 2).join(', ');
+                                        const more = item.sources.length > 2 ? '...' : '';
+                                        line += ` [${sourceStr}${more}]`;
                                     }
                                     formattedText += `${line}\n`;
                                 });
                             }
                         });
-
-                        // Catch any leftovers or unassigned? (Actually AI should cover all, but just in case)
                         
-                        if (!formattedText) {
-                            // Fallback if empty
+                        if (!formattedText.includes("•")) {
+                            // Fallback if empty response
                             formattedText = items.map(item => {
-                                let line = `- [ ] ${item.text}`;
-                                if (item.sources && item.sources.length > 0) line += ` (${item.sources.join(', ')})`;
+                                let line = `• ${item.text}`;
+                                if (item.sources && item.sources.length > 0) line += ` [${item.sources.join(', ')}]`;
                                 return line;
                             }).join('\n');
                         }
@@ -1634,8 +1692,8 @@
                         console.error("Export failed", e);
                         // Fallback to simple list
                         exportText.value = items.map(item => {
-                            let line = `- [ ] ${item.text}`;
-                            if (item.sources && item.sources.length > 0) line += ` (${item.sources.join(', ')})`;
+                            let line = `• ${item.text}`;
+                            if (item.sources && item.sources.length > 0) line += ` [${item.sources.join(', ')}]`;
                             return line;
                         }).join('\n');
                     } finally {
