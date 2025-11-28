@@ -145,6 +145,17 @@ def write_data(data, expected_etag=None):
         
         # Slots
         slots = data.get('slots', {})
+        
+        # 1. Handle Deletions: Get existing slots and delete those not in the new payload
+        try:
+            existing_slots = db.collection('slots').list_documents()
+            for doc in existing_slots:
+                if doc.id not in slots:
+                    batch.delete(doc)
+        except Exception as list_err:
+             logging.warning(f"Failed to list documents for deletion cleanup: {list_err}")
+
+        # 2. Update/Create provided slots
         for key, slot_data in slots.items():
             doc_ref = db.collection('slots').document(key)
             batch.set(doc_ref, slot_data)

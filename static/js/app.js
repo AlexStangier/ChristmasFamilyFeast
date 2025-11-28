@@ -463,13 +463,17 @@ createApp({
                 } finally {
                     proposal.isLoadingRecipe = false;
                 }
-            }
-
-            mealSlots.value[key].approved = true;
-            proposal.approved = true;
-
-            // Add ingredients to grocery list
-            if (proposal.ingredients && proposal.ingredients.length > 0) {
+                                }
+            
+                                // Unset other approvals in this slot to ensure consistency (Single Winner Rule)
+                                if (mealSlots.value[key].proposals) {
+                                    mealSlots.value[key].proposals.forEach(p => p.approved = false);
+                                }
+            
+                                mealSlots.value[key].approved = true;
+                                proposal.approved = true;
+            
+                                // Add ingredients to grocery list            if (proposal.ingredients && proposal.ingredients.length > 0) {
                 // Avoid duplicates (simple check)
                 const existingStrings = groceryList.value.map(g => typeof g === 'string' ? g : g.text);
                 const newItems = proposal.ingredients.filter(i => !existingStrings.includes(i));
