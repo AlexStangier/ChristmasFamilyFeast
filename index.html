@@ -49,11 +49,24 @@
 
 <body>
 
-    <div id="app" class="min-h-screen flex flex-col items-center p-4 sm:p-6">
+    <!-- Snow Background -->
+    <div class="fixed inset-0 pointer-events-none z-0 overflow-hidden" aria-hidden="true">
+        <div class="snowflake absolute top-[-10px] text-white/20 text-xl animate-fall" style="left: 10%; animation-duration: 10s; animation-delay: 0s;">❄</div>
+        <div class="snowflake absolute top-[-10px] text-white/30 text-2xl animate-fall" style="left: 20%; animation-duration: 12s; animation-delay: 2s;">❅</div>
+        <div class="snowflake absolute top-[-10px] text-white/10 text-sm animate-fall" style="left: 30%; animation-duration: 8s; animation-delay: 4s;">❆</div>
+        <div class="snowflake absolute top-[-10px] text-white/25 text-lg animate-fall" style="left: 40%; animation-duration: 15s; animation-delay: 1s;">❄</div>
+        <div class="snowflake absolute top-[-10px] text-white/20 text-xl animate-fall" style="left: 50%; animation-duration: 11s; animation-delay: 5s;">❅</div>
+        <div class="snowflake absolute top-[-10px] text-white/15 text-2xl animate-fall" style="left: 60%; animation-duration: 13s; animation-delay: 3s;">❆</div>
+        <div class="snowflake absolute top-[-10px] text-white/30 text-base animate-fall" style="left: 70%; animation-duration: 9s; animation-delay: 6s;">❄</div>
+        <div class="snowflake absolute top-[-10px] text-white/20 text-xl animate-fall" style="left: 80%; animation-duration: 14s; animation-delay: 2s;">❅</div>
+        <div class="snowflake absolute top-[-10px] text-white/10 text-sm animate-fall" style="left: 90%; animation-duration: 16s; animation-delay: 4s;">❆</div>
+    </div>
+
+    <div id="app" class="min-h-screen flex flex-col items-center p-4 sm:p-6 relative z-10">
 
         <!-- Header -->
         <header
-            class="w-full max-w-6xl flex justify-between items-center mb-8 bg-xmas-red text-white p-4 rounded-xl shadow-lg relative overflow-hidden">
+            class="w-full max-w-7xl flex justify-between items-center mb-8 bg-xmas-red text-white p-4 rounded-xl shadow-lg relative overflow-hidden">
             <div class="absolute top-0 left-0 w-full h-2 bg-xmas-gold/50"></div>
             <div class="z-10">
                 <h1 class="text-3xl sm:text-4xl font-festive">Das Familienfest</h1>
@@ -325,7 +338,7 @@
         </main>
 
         <!-- Grocery List Section -->
-        <section v-if="groceryList.length > 0" class="w-full max-w-6xl mt-8 mb-8">
+        <section v-if="groceryList.length > 0" class="w-full max-w-7xl mt-8 mb-8">
             <div class="snow-card p-6 border-t-4 border-xmas-gold">
                 <div class="flex items-center justify-between mb-4">
                     <div class="flex items-center gap-3">
@@ -624,7 +637,7 @@
         </div>
 
         <!-- Sync Footer -->
-        <footer class="mt-auto py-6 w-full max-w-6xl flex justify-between items-center text-sm font-festive text-xl">
+        <footer class="mt-auto py-6 w-full max-w-7xl flex justify-between items-center text-sm font-festive text-xl">
             <div class="flex items-center gap-2 text-gray-500">
                 <div class="w-2 h-2 rounded-full" :class="{
                     'bg-green-500': syncStatus === 'saved',
