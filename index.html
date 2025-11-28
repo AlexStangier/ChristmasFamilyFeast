@@ -727,24 +727,44 @@
                     }
                 };
 
-                const approveDish = (date, type, proposal) => {
+                const approveDish = async (date, type, proposal) => {
                     const key = getSlotKey(date, type);
-                    if (mealSlots.value[key]) {
-                        mealSlots.value[key].approved = true;
-                        proposal.approved = true;
+                    if (!mealSlots.value[key]) return;
 
-                        // Add ingredients to grocery list
-                        if (proposal.ingredients) {
-                            // Avoid duplicates
-                            const newItems = proposal.ingredients.filter(i => !groceryList.value.includes(i));
-                            groceryList.value.push(...newItems);
-                        } else {
-                            // If no ingredients yet, try to fetch them or just add the dish name as placeholder
-                            groceryList.value.push(`${proposal.name} (Zutaten prüfen)`);
+                    // If ingredients not loaded yet, fetch them first
+                    if (!proposal.ingredients || proposal.ingredients.length === 0) {
+                        proposal.isLoadingRecipe = true;
+                        try {
+                            const res = await fetch('/api/ai/recipe', {
+                                method: 'POST',
+                                headers: { 'Content-Type': 'application/json' },
+                                body: JSON.stringify({ dish_name: proposal.name })
+                            });
+                            const data = await res.json();
+                            if (data.url) proposal.recipeUrl = data.url;
+                            if (data.ingredients) proposal.ingredients = data.ingredients;
+                            if (data.instructions) proposal.instructions = data.instructions;
+                        } catch (e) {
+                            console.error("Recipe fetch failed during approval", e);
+                        } finally {
+                            proposal.isLoadingRecipe = false;
                         }
-
-                        logActivity('approve', `hat "${proposal.name}" genehmigt`);
                     }
+
+                    mealSlots.value[key].approved = true;
+                    proposal.approved = true;
+
+                    // Add ingredients to grocery list
+                    if (proposal.ingredients && proposal.ingredients.length > 0) {
+                        // Avoid duplicates
+                        const newItems = proposal.ingredients.filter(i => !groceryList.value.includes(i));
+                        groceryList.value.push(...newItems);
+                    } else {
+                        // If still no ingredients, add placeholder
+                        groceryList.value.push(`${proposal.name} (Zutaten prüfen)`);
+                    }
+
+                    logActivity('approve', `hat "${proposal.name}" genehmigt`);
                 };
 
                 const deleteProposal = (date, type, proposalId) => {
