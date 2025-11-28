@@ -1362,13 +1362,28 @@
                 const mergedGroceryList = computed(() => getMergedItems());
 
                 const isExporting = ref(false);
+                const cachedExportData = ref(null); // { key: string, text: string }
 
                 const openExportModal = async () => {
+                    const items = getMergedItems();
+                    // Create a unique key for the current state of ingredients
+                    // We use text + quantity + unit + source to detect changes
+                    const currentKey = JSON.stringify(items.map(i => ({
+                        t: i.text, 
+                        q: i.quantity, 
+                        u: i.unit, 
+                        s: (i.sources || []).sort().join(',')
+                    })));
+
+                    if (cachedExportData.value && cachedExportData.value.key === currentKey) {
+                        exportText.value = cachedExportData.value.text;
+                        showExportModal.value = true;
+                        return;
+                    }
+
                     isExporting.value = true;
                     showExportModal.value = true;
                     exportText.value = "Generiere kategorisierte Liste...";
-                    
-                    const items = getMergedItems();
                     
                     // Prepare simple list for AI
                     const simpleList = items.map(i => i.text);
@@ -1412,7 +1427,6 @@
                         });
 
                         // Catch any leftovers or unassigned? (Actually AI should cover all, but just in case)
-                        // ... for now assume AI covers all provided list or returns them in keys.
                         
                         if (!formattedText) {
                             // Fallback if empty
@@ -1423,7 +1437,9 @@
                             }).join('\n');
                         }
 
-                        exportText.value = formattedText.trim();
+                        const finalText = formattedText.trim();
+                        exportText.value = finalText;
+                        cachedExportData.value = { key: currentKey, text: finalText };
 
                     } catch (e) {
                         console.error("Export failed", e);
