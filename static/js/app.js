@@ -813,7 +813,7 @@ createApp({
             return {
                 quantity: null,
                 unit: '',
-                name: normalizeName(rawName),
+                name: normalizeName(cleanText),
                 sources: source ? [source] : []
             };
         };
