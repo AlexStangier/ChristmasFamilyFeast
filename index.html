@@ -20,6 +20,9 @@
     <!-- Phosphor Icons -->
     <script src="https://unpkg.com/@phosphor-icons/web"></script>
 
+    <!-- Custom CSS -->
+    <link rel="stylesheet" href="/static/css/style.css">
+
     <script>
         tailwind.config = {
             theme: {
@@ -42,30 +45,6 @@
         }
     </script>
 
-    <style>
-        body {
-            background-color: #F0EAD6;
-            background-image: radial-gradient(#D42426 0.5px, transparent 0.5px), radial-gradient(#165B33 0.5px, #F0EAD6 0.5px);
-            background-size: 20px 20px;
-            background-position: 0 0, 10px 10px;
-        }
-
-        .snow-card {
-            background: rgba(255, 255, 255, 0.95);
-            backdrop-filter: blur(4px);
-            border-radius: 12px;
-            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
-        }
-
-        .hide-scroll::-webkit-scrollbar {
-            display: none;
-        }
-
-        .hide-scroll {
-            -ms-overflow-style: none;
-            scrollbar-width: none;
-        }
-    </style>
 </head>
 
 <body>

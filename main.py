@@ -105,6 +105,10 @@ def read_data(client_etag=None):
         groc_doc = db.collection('lists').document('groceries').get()
         groceries = groc_doc.get('items') if groc_doc.exists else []
 
+        # Fetch Activity Log
+        act_doc = db.collection('lists').document('activity').get()
+        activity = act_doc.get('items') if act_doc.exists else []
+
         # Fetch Settings
         sett_doc = db.collection('config').document('settings').get()
         settings = sett_doc.to_dict() if sett_doc.exists else {}
@@ -112,6 +116,7 @@ def read_data(client_etag=None):
         full_data = {
             "slots": slots,
             "groceries": groceries,
+            "activity": activity,
             "settings": settings
         }
         
@@ -146,6 +151,9 @@ def write_data(data, expected_etag=None):
             
         # Groceries
         batch.set(db.collection('lists').document('groceries'), {'items': data.get('groceries', [])})
+
+        # Activity Log
+        batch.set(db.collection('lists').document('activity'), {'items': data.get('activity', [])})
         
         # Settings
         batch.set(db.collection('config').document('settings'), data.get('settings', {}))
