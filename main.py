@@ -241,6 +241,46 @@ def suggest_dishes():
         logging.error(f"AI Suggest Error: {e}")
         return jsonify({"error": "Failed to fetch suggestions"}), 500
 
+@app.route('/api/ai/categorize', methods=['POST'])
+def categorize_groceries():
+    """Uses Gemini to categorize a list of ingredients."""
+    data = request.json
+    items = data.get('items') # List of strings: ["500g Mehl", "3 Eier"]
+    if not items:
+        return jsonify({"error": "No items provided"}), 400
+
+    try:
+        model = GenerativeModel("gemini-2.5-flash")
+        # Optimization: Process in batches if list is huge, but for family planner 100 items is fine.
+        prompt = f"""
+        Categorize the following grocery list items into these German categories:
+        - Obst & Gemüse
+        - Fleisch & Fisch
+        - Kühlregal (Dairy, Eggs, Cheese)
+        - Vorratsschrank (Baking, Spices, Pasta, Canned)
+        - Getränke
+        - Haushalt & Sonstiges
+
+        Items:
+        {json.dumps(items, ensure_ascii=False)}
+
+        Return a JSON object where keys are categories and values are lists of the original item strings belonging to that category.
+        Example:
+        {{
+            "Obst & Gemüse": ["Äpfel", "Salat"],
+            "Vorratsschrank": ["Mehl", "Salz"]
+        }}
+        Do not change the item names/strings, just group them.
+        """
+        
+        response = model.generate_content(prompt)
+        text = response.text.replace('```json', '').replace('```', '').strip()
+        categorized = json.loads(text)
+        return jsonify(categorized)
+    except Exception as e:
+        logging.error(f"AI Categorize Error: {e}")
+        return jsonify({"error": "Failed to categorize"}), 500
+
 if __name__ == "__main__":
     # Cloud Run injects the PORT environment variable
     port = int(os.environ.get("PORT", 8080))

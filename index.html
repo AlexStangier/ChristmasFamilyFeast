@@ -506,6 +506,13 @@
 
                 <h3 class="font-festive text-2xl text-xmas-green mb-4">Einkaufsliste Export</h3>
                 
+                <div v-if="isExporting" class="absolute inset-0 z-10 bg-white/50 backdrop-blur-sm flex items-center justify-center rounded-xl">
+                    <div class="flex flex-col items-center gap-2">
+                        <i class="ph-bold ph-spinner animate-spin text-3xl text-xmas-gold"></i>
+                        <span class="text-sm text-gray-600 font-bold">Sortiere & Kategorisiere...</span>
+                    </div>
+                </div>
+
                 <textarea 
                     readonly 
                     class="w-full h-64 p-3 border border-gray-200 rounded-lg text-sm font-mono text-gray-700 focus:outline-none focus:border-xmas-gold bg-gray-50 resize-none"
@@ -1269,19 +1276,28 @@
 
                 // -- Smart Grocery List Merging --
 
-                const parseIngredient = (ingredient) => {
+                const parseIngredient = (item) => {
+                    const rawText = typeof item === 'string' ? item : item.text;
+                    const source = typeof item === 'string' ? null : item.source;
+                    
                     // Try to extract quantity and unit from ingredient string
                     // Patterns: "500g Mehl", "2 Zwiebeln", "1 EL Öl", "Salz"
-                    const match = ingredient.match(/^([\d.,]+)\s*([a-zA-ZäöüÄÖÜß]*)?\s+(.+)$/);
+                    const match = rawText.match(/^([\d.,]+)\s*([a-zA-ZäöüÄÖÜß]*)?\s+(.+)$/);
                     if (match) {
                         return {
                             quantity: parseFloat(match[1].replace(',', '.')),
                             unit: match[2] || '',
-                            name: match[3].trim()
+                            name: match[3].trim(),
+                            sources: source ? [source] : []
                         };
                     }
                     // No quantity found, treat as single item
-                    return { quantity: null, unit: '', name: ingredient.trim() };
+                    return { 
+                        quantity: null, 
+                        unit: '', 
+                        name: rawText.trim(),
+                        sources: source ? [source] : []
+                    };
                 };
 
                 const getMergedItems = () => {
@@ -1295,11 +1311,11 @@
                             return;
                         }
 
-                        // Handle Strings (and potentially other objects if we expand)
-                        const text = typeof item === 'string' ? item : item.text;
-                        if (!text) return;
+                        // Parse
+                        const parsed = parseIngredient(item);
+                        // Skip empty strings
+                        if (!parsed.name) return;
 
-                        const parsed = parseIngredient(text);
                         const key = `${parsed.name.toLowerCase()}|${parsed.unit.toLowerCase()}`;
 
                         if (merged[key]) {
@@ -1307,6 +1323,12 @@
                                 merged[key].quantity += parsed.quantity;
                             } else if (parsed.quantity !== null) {
                                 merged[key].quantity = parsed.quantity;
+                            }
+                            // Merge sources
+                            if (parsed.sources.length) {
+                                parsed.sources.forEach(s => {
+                                    if (!merged[key].sources.includes(s)) merged[key].sources.push(s);
+                                });
                             }
                         } else {
                             merged[key] = { ...parsed };
@@ -1328,7 +1350,8 @@
                             isPlaceholder: false, 
                             name: item.name, 
                             quantity: item.quantity, 
-                            unit: item.unit 
+                            unit: item.unit,
+                            sources: item.sources
                         };
                     });
 
@@ -1338,19 +1361,78 @@
 
                 const mergedGroceryList = computed(() => getMergedItems());
 
-                const openExportModal = () => {
-                    const items = getMergedItems().sort((a, b) => a.name.localeCompare(b.name));
-                    exportText.value = items.map(item => {
-                        if (item.isPlaceholder) return item.text;
-                        
-                        if (item.quantity !== null) {
-                            const qty = item.quantity % 1 === 0 ? item.quantity : item.quantity.toFixed(1);
-                            return `${item.name}: ${qty}${item.unit ? item.unit : ''}`;
-                        }
-                        return item.name;
-                    }).join('\n');
+                const isExporting = ref(false);
+
+                const openExportModal = async () => {
+                    isExporting.value = true;
                     showExportModal.value = true;
+                    exportText.value = "Generiere kategorisierte Liste...";
+                    
+                    const items = getMergedItems();
+                    
+                    // Prepare simple list for AI
+                    const simpleList = items.map(i => i.text);
+                    
+                    try {
+                        const res = await fetch('/api/ai/categorize', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ items: simpleList })
+                        });
+                        const categories = await res.json();
+                        
+                        let formattedText = "";
+                        
+                        // Define order
+                        const order = ["Obst & Gemüse", "Kühlregal", "Fleisch & Fisch", "Vorratsschrank", "Getränke", "Haushalt & Sonstiges"];
+                        
+                        // Helper to find the full item object (with sources) based on the text
+                        const findItem = (text) => items.find(i => i.text === text);
+
+                        order.forEach(cat => {
+                            if (categories[cat] && categories[cat].length > 0) {
+                                formattedText += `\n## ${cat.toUpperCase()}\n`;
+                                categories[cat].forEach(text => {
+                                    const item = findItem(text);
+                                    let line = `- [ ] ${text}`;
+                                    if (item && item.sources && item.sources.length > 0) {
+                                        line += `   (für ${item.sources.join(', ')})`;
+                                    }
+                                    formattedText += `${line}\n`;
+                                });
+                            }
+                        });
+
+                        // Catch any leftovers or unassigned? (Actually AI should cover all, but just in case)
+                        // ... for now assume AI covers all provided list or returns them in keys.
+                        
+                        if (!formattedText) {
+                            // Fallback if empty
+                            formattedText = items.map(item => {
+                                let line = `- [ ] ${item.text}`;
+                                if (item.sources && item.sources.length > 0) line += ` (${item.sources.join(', ')})`;
+                                return line;
+                            }).join('\n');
+                        }
+
+                        exportText.value = formattedText.trim();
+
+                    } catch (e) {
+                        console.error("Export failed", e);
+                        // Fallback to simple list
+                        exportText.value = items.map(item => {
+                            let line = `- [ ] ${item.text}`;
+                            if (item.sources && item.sources.length > 0) line += ` (${item.sources.join(', ')})`;
+                            return line;
+                        }).join('\n');
+                    } finally {
+                        isExporting.value = false;
+                    }
                 };
+
+                // Update add functions to include source
+                // ... approveDish needs update
+                // ... retryLoadingIngredients needs update
 
                 const loadingIngredientsFor = ref(null); // track proposalId being loaded
 
@@ -1413,7 +1495,7 @@
                     editingGroceryIndex, editingGroceryText, newGroceryItem,
                     startEditGrocery, saveGroceryEdit, cancelGroceryEdit, removeGroceryItem, addGroceryItem,
                     activityLog, showActivityLog, formatLogTime, mergedGroceryList,
-                    showExportModal, exportText, openExportModal,
+                    showExportModal, exportText, openExportModal, isExporting,
                     isCopyMode, startCopyMode, stopCopyMode, isTargetSlot, handleSlotCopyClick, duplicateSource,
                     retryLoadingIngredients, loadingIngredientsFor
                 };
