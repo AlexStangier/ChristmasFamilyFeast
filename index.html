@@ -131,8 +131,14 @@
                 </div>
 
                 <!-- Danger Zone -->
-                <div class="pt-6 border-t border-gray-100">
-                    <h4 class="text-xs font-bold text-red-500 uppercase tracking-wider mb-3">Gefahrenzone</h4>
+                <div class="pt-6 border-t border-gray-100 flex flex-col gap-3">
+                    <h4 class="text-xs font-bold text-red-500 uppercase tracking-wider mb-1">Gefahrenzone</h4>
+                    
+                    <button @click="resetEvent"
+                        class="w-full border-2 border-red-500 bg-red-500 text-white hover:bg-red-600 p-2 rounded text-sm font-bold transition-colors flex items-center justify-center gap-2 shadow-sm">
+                        <i class="ph-bold ph-warning"></i> Event zurücksetzen (Server)
+                    </button>
+
                     <button @click="clearLocalData"
                         class="w-full border border-red-200 text-red-500 hover:bg-red-50 p-2 rounded text-sm font-bold transition-colors flex items-center justify-center gap-2">
                         <i class="ph-bold ph-trash"></i> Lokale Daten löschen (Logout)
@@ -1622,6 +1628,24 @@
                     }
                 };
 
+                const resetEvent = async () => {
+                    if (!confirm("WARNUNG: Dies löscht ALLE Gerichte, Einkaufslisten und Abstimmungen für ALLE Nutzer unwiderruflich! Fortfahren?")) return;
+                    
+                    // 1. Sync first to get latest ETag and avoid 409
+                    await fetchData();
+                    
+                    // 2. Clear Data
+                    mealSlots.value = {};
+                    groceryList.value = [];
+                    // We also reset activity log for cleanliness, though it's ephemeral
+                    activityLog.value = [];
+                    
+                    // 3. Save (force overwrite by using current ETag from fetch)
+                    await saveData();
+                    
+                    alert("Das Event wurde zurückgesetzt.");
+                };
+
                 return {
                     currentUser, roles, days, mealTypes, login, logout,
                     getRoleIcon, formatDate, isSignatureDish, getProposals, hasVotedFor, isLeading, getProposalClass,
@@ -1637,7 +1661,7 @@
                     isCopyMode, startCopyMode, stopCopyMode, isTargetSlot, handleSlotCopyClick, duplicateSource,
                     retryLoadingIngredients, loadingIngredientsFor,
                     dayContainer, canScrollLeft, canScrollRight, checkScroll, scrollDays,
-                    globalSettings, showSettingsModal, openSettings, saveSettingsPin, clearLocalData,
+                    globalSettings, showSettingsModal, openSettings, saveSettingsPin, clearLocalData, resetEvent,
                     showPinEntryModal, pinEntryValue, pinError, verifyPin
                 };
             }
