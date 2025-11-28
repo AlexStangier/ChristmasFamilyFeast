@@ -464,6 +464,69 @@
             </div>
         </div>
 
+        <!-- Activity Log Tab -->
+        <div class="fixed bottom-0 right-4 z-50">
+            <!-- Collapsed Tab -->
+            <button v-if="!showActivityLog" @click="showActivityLog = true"
+                class="snow-card px-4 py-2 rounded-t-lg shadow-lg flex items-center gap-2 hover:bg-gray-50 transition-colors">
+                <i class="ph-bold ph-chats-circle text-xmas-gold"></i>
+                <span class="font-semibold text-gray-700">Aktivitäten</span>
+                <span v-if="activityLog.length > 0" class="bg-xmas-red text-white text-xs px-2 py-0.5 rounded-full">{{
+                    activityLog.length }}</span>
+            </button>
+
+            <!-- Expanded Log -->
+            <div v-if="showActivityLog"
+                class="snow-card w-96 h-96 flex flex-col shadow-2xl rounded-t-lg overflow-hidden">
+                <!-- Header -->
+                <div
+                    class="bg-gradient-to-r from-xmas-green to-green-700 text-white p-3 flex justify-between items-center">
+                    <div class="flex items-center gap-2">
+                        <i class="ph-fill ph-chats-circle text-xl"></i>
+                        <h3 class="font-bold">Aktivitätsprotokoll</h3>
+                    </div>
+                    <button @click="showActivityLog = false" class="hover:bg-white/20 rounded p-1 transition-colors">
+                        <i class="ph-bold ph-x"></i>
+                    </button>
+                </div>
+
+                <!-- Log Messages -->
+                <div class="flex-1 overflow-y-auto p-3 space-y-2 bg-gray-50">
+                    <div v-for="(log, index) in activityLog.slice().reverse()" :key="index"
+                        class="bg-white rounded-lg p-3 shadow-sm border-l-4" :class="{
+                            'border-xmas-green': log.type === 'add',
+                            'border-xmas-gold': log.type === 'edit',
+                            'border-xmas-red': log.type === 'delete',
+                            'border-blue-500': log.type === 'vote',
+                            'border-purple-500': log.type === 'approve'
+                        }">
+                        <div class="flex items-start gap-2">
+                            <div class="shrink-0 w-8 h-8 rounded-full bg-gray-100 flex items-center justify-center text-xs font-bold"
+                                :class="{
+                                    'bg-xmas-green/10 text-xmas-green': log.user === 'Organisator',
+                                    'bg-blue-100 text-blue-600': log.user === 'Eltern',
+                                    'bg-purple-100 text-purple-600': log.user === 'Hamburg',
+                                    'bg-orange-100 text-orange-600': log.user === 'Konstanz'
+                                }">
+                                {{ log.user.substring(0, 2).toUpperCase() }}
+                            </div>
+                            <div class="flex-1 min-w-0">
+                                <div class="flex items-center gap-2 mb-1">
+                                    <span class="font-semibold text-sm text-gray-800">{{ log.user }}</span>
+                                    <span class="text-xs text-gray-400">{{ formatLogTime(log.timestamp) }}</span>
+                                </div>
+                                <p class="text-sm text-gray-600">{{ log.message }}</p>
+                            </div>
+                        </div>
+                    </div>
+                    <div v-if="activityLog.length === 0" class="text-center text-gray-400 py-8">
+                        <i class="ph-bold ph-chat-centered-dots text-4xl mb-2"></i>
+                        <p class="text-sm">Noch keine Aktivitäten</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
         <!-- Sync Footer -->
         <footer class="mt-auto py-6 w-full max-w-6xl flex justify-between items-center text-sm font-festive text-xl">
             <div class="flex items-center gap-2 text-gray-500">
@@ -505,6 +568,8 @@
                 const editingGroceryIndex = ref(null);
                 const editingGroceryText = ref("");
                 const newGroceryItem = ref("");
+                const activityLog = ref([]);
+                const showActivityLog = ref(false);
 
                 // Sync State
                 const syncStatus = ref('saved'); // 'saved', 'syncing', 'error'
@@ -662,19 +727,23 @@
                         proposer: currentUser.value,
                         votes: [currentUser.value]
                     });
+
+                    logActivity('add', `hat "${newProposalText.value.trim()}" für ${type} am ${formatDate(date)} vorgeschlagen`);
                     closeForm(date, type);
                 };
 
                 const toggleVote = (date, type, proposal) => {
                     if (!currentUser.value) return;
-                    const key = getSlotKey(date, type);
-                    const slot = mealSlots.value[key];
-                    const target = slot?.proposals.find(p => p.id === proposal.id);
-                    if (!target) return;
-
+                    const target = proposal;
                     if (!target.votes) target.votes = [];
-                    if (target.votes.includes(currentUser.value)) target.votes = target.votes.filter(v => v !== currentUser.value);
-                    else target.votes.push(currentUser.value);
+
+                    if (target.votes.includes(currentUser.value)) {
+                        target.votes = target.votes.filter(v => v !== currentUser.value);
+                        logActivity('vote', `hat die Stimme für "${proposal.name}" zurückgezogen`);
+                    } else {
+                        target.votes.push(currentUser.value);
+                        logActivity('vote', `hat für "${proposal.name}" gestimmt`);
+                    }
                 };
 
                 const approveDish = (date, type, proposal) => {
@@ -692,6 +761,8 @@
                             // If no ingredients yet, try to fetch them or just add the dish name as placeholder
                             groceryList.value.push(`${proposal.name} (Zutaten prüfen)`);
                         }
+
+                        logActivity('approve', `hat "${proposal.name}" genehmigt`);
                     }
                 };
 
@@ -710,6 +781,10 @@
                                     groceryList.value.splice(index, 1);
                                 }
                             });
+                        }
+
+                        if (proposal) {
+                            logActivity('delete', `hat "${proposal.name}" gelöscht`);
                         }
 
                         // Remove proposal
@@ -892,6 +967,29 @@
                     }
                 };
 
+                // -- Activity Log --
+
+                const logActivity = (type, message) => {
+                    if (!currentUser.value) return;
+                    activityLog.value.push({
+                        type,
+                        user: currentUser.value,
+                        message,
+                        timestamp: new Date().toISOString()
+                    });
+                };
+
+                const formatLogTime = (timestamp) => {
+                    const date = new Date(timestamp);
+                    const now = new Date();
+                    const diff = now - date;
+
+                    if (diff < 60000) return 'Gerade eben';
+                    if (diff < 3600000) return `vor ${Math.floor(diff / 60000)} Min`;
+                    if (diff < 86400000) return `vor ${Math.floor(diff / 3600000)} Std`;
+                    return date.toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' });
+                };
+
                 return {
                     currentUser, roles, days, mealTypes, login, logout,
                     getRoleIcon, formatDate, isSignatureDish, getProposals, hasVotedFor, isLeading, getProposalClass,
@@ -901,7 +999,8 @@
                     selectedRecipeProp, openRecipeModal, closeRecipeModal, withdrawProposal,
                     previewData, isLoadingPreview,
                     editingGroceryIndex, editingGroceryText, newGroceryItem,
-                    startEditGrocery, saveGroceryEdit, cancelGroceryEdit, removeGroceryItem, addGroceryItem
+                    startEditGrocery, saveGroceryEdit, cancelGroceryEdit, removeGroceryItem, addGroceryItem,
+                    activityLog, showActivityLog, formatLogTime
                 };
             }
         }).mount('#app');
