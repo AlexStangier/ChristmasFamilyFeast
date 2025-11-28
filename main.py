@@ -137,10 +137,13 @@ def suggest_dishes():
         return jsonify({"error": "No query provided"}), 400
 
     try:
-        model = GenerativeModel("gemini-2.5-pro")
+        model = GenerativeModel("gemini-1.5-flash")
         prompt = f"""
-        Suggest 5 popular Christmas or festive dishes (in German) that match the search term "{query}".
-        Return ONLY a JSON array of strings, e.g.: ["Dish 1", "Dish 2"]
+        For the search term "{query}", suggest dishes in German.
+        ALWAYS include the exact search term as the first suggestion if it's a valid dish name.
+        Then add 4-5 related or similar dishes.
+        
+        Return ONLY a JSON array of strings, e.g.: ["Tiramisu", "Tiramisu mit Erdbeeren", "Panna Cotta"]
         """
         response = model.generate_content(prompt)
         text = response.text.replace('```json', '').replace('```', '').strip()

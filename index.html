@@ -761,16 +761,27 @@
 
                     if (!mealSlots.value[key]) mealSlots.value[key] = { date, type, proposals: [] };
 
-                    mealSlots.value[key].proposals.push({
+                    const newProposal = {
                         id: crypto.randomUUID(),
                         name: name,
                         proposer: currentUser.value,
                         votes: [currentUser.value]
-                    });
+                    };
 
-                    // Auto-fetch recipe info in background
-                    const newProp = mealSlots.value[key].proposals[mealSlots.value[key].proposals.length - 1];
-                    findRecipe(date, type, newProp);
+                    // If we have preview data, reuse it to speed up
+                    if (previewData.value && previewData.value.url) {
+                        newProposal.recipeUrl = previewData.value.url;
+                        newProposal.ingredients = previewData.value.ingredients || [];
+                        newProposal.instructions = previewData.value.instructions || [];
+                    }
+
+                    mealSlots.value[key].proposals.push(newProposal);
+
+                    // Only fetch recipe if we don't have preview data
+                    if (!previewData.value || !previewData.value.url) {
+                        const newProp = mealSlots.value[key].proposals[mealSlots.value[key].proposals.length - 1];
+                        findRecipe(date, type, newProp);
+                    }
 
                     closeProposalModal();
                 };
