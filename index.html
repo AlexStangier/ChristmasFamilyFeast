@@ -735,6 +735,13 @@
                 const showExportModal = ref(false);
                 const exportText = ref("");
 
+                // Settings & PIN
+                const globalSettings = ref({ organizerPin: '' });
+                const showSettingsModal = ref(false);
+                const showPinEntryModal = ref(false);
+                const pinEntryValue = ref("");
+                const pinError = ref(false);
+
                 // Sync State
                 const syncStatus = ref('saved'); // 'saved', 'syncing', 'error'
                 const syncMessage = ref('Alle Änderungen gespeichert');
