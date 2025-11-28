@@ -42,14 +42,14 @@ resource "random_id" "bucket_suffix" {
 resource "google_storage_bucket" "data_bucket" {
   name          = "${var.project_id}-christmas-data-${random_id.bucket_suffix.hex}"
   location      = var.region
-  force_destroy = false 
+  force_destroy = false
 
   uniform_bucket_level_access = true
 }
 
 resource "google_firestore_database" "database" {
   project     = var.project_id
-  name        = "(default)"
+  name        = "christmas-planner"
   location_id = var.region
   type        = "FIRESTORE_NATIVE"
 }

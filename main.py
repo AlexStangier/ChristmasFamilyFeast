@@ -22,7 +22,7 @@ logging.basicConfig(level=logging.INFO)
 db = None
 try:
     if os.environ.get("K_SERVICE"): # Check if running in Cloud Run
-        db = firestore.Client(project=PROJECT_ID)
+        db = firestore.Client(project=PROJECT_ID, database="christmas-planner")
         logging.info("Firestore initialized.")
 except Exception as e:
     logging.warning(f"Firestore init failed (running local?): {e}")
