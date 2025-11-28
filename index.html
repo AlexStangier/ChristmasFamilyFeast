@@ -1017,14 +1017,54 @@
                 };
                 const hasVotedFor = (prop) => (prop.votes || []).includes(currentUser.value);
 
+                // -- Settings Logic --
+                const openSettings = () => {
+                    showSettingsModal.value = true;
+                };
+
+                const saveSettingsPin = (newPin) => {
+                    globalSettings.value.organizerPin = newPin;
+                    saveData(); // Persist immediately
+                };
+
+                const clearLocalData = () => {
+                    if(confirm("Wirklich alle lokalen Daten löschen und App neu laden?")) {
+                        localStorage.clear();
+                        window.location.reload();
+                    }
+                };
+
                 // -- Actions --
                 const login = (role) => {
+                    if (role === 'Organisator' && globalSettings.value.organizerPin) {
+                        // Prompt PIN
+                        pinEntryValue.value = "";
+                        pinError.value = false;
+                        showPinEntryModal.value = true;
+                        return;
+                    }
+                    performLogin(role);
+                };
+
+                const performLogin = (role) => {
                     currentUser.value = role;
                     localStorage.setItem('christmas_role', role);
+                    showPinEntryModal.value = false;
                 };
+
+                const verifyPin = () => {
+                    if (pinEntryValue.value === globalSettings.value.organizerPin) {
+                        performLogin('Organisator');
+                    } else {
+                        pinError.value = true;
+                        pinEntryValue.value = "";
+                    }
+                };
+
                 const logout = () => {
                     currentUser.value = null;
                     localStorage.removeItem('christmas_role');
+                    showSettingsModal.value = false; // close if open
                 };
                 const openForm = (date, type) => {
                     showForm.value = { [date + type]: true };
