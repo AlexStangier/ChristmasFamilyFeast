@@ -31,7 +31,7 @@ createApp({
         const exportText = ref("");
 
         // Settings & PIN
-        const globalSettings = ref({ organizerPin: '4567' });
+        const globalSettings = ref({ organizerPin: '' });
         const showSettingsModal = ref(false);
         const showPinEntryModal = ref(false);
         const pinEntryValue = ref("");
@@ -81,7 +81,7 @@ createApp({
                 const serverSlots = data.slots || data;
                 const serverGroceries = data.groceries || [];
                 const serverActivity = data.activity || [];
-                const serverSettings = data.settings || { organizerPin: '4567' };
+                const serverSettings = data.settings || { organizerPin: '' };
 
                 // Deep compare to see if we even need to update
                 const currentString = JSON.stringify({ slots: mealSlots.value, groceries: groceryList.value, activity: activityLog.value, settings: globalSettings.value });
