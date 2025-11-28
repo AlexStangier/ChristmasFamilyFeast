@@ -122,7 +122,7 @@ def read_data(client_etag=None):
         return {}, None, False
 
 def write_data(data, expected_etag=None):
-    """Writes JSON to Firestore using Batch."""
+    """Writes JSON to Firestore using Batch. Returns (success, error_or_version)."""
     if not db:
         logging.error("Database not initialized")
         return False, "error"
@@ -130,27 +130,16 @@ def write_data(data, expected_etag=None):
     try:
         meta_ref = db.collection('config').document('metadata')
         
-        # 1. Optimistic Locking Check
-        # We need to fetch metadata to compare versions
-        # In a real high-concurrency app, we'd use a Transaction. 
-        # Here, getting it first is "okay" given the frontend merge logic, 
-        # but technically a race condition exists between read and batch commit.
-        # Given the requirements, we'll check strictly if expected_etag is provided.
-        
         if expected_etag:
             meta_doc = meta_ref.get()
             current_version = meta_doc.get('version') if meta_doc.exists else "0"
             if current_version != expected_etag:
                 return False, "conflict"
 
-        # 2. Prepare Batch
         batch = db.batch()
         
         # Slots
         slots = data.get('slots', {})
-        # Note: This overwrites existing slots. It does NOT delete slots that were removed in UI 
-        # (unless we explicitly handle deletion). 
-        # Since slots are fixed (Dates x MealTypes), overwrite is fine.
         for key, slot_data in slots.items():
             doc_ref = db.collection('slots').document(key)
             batch.set(doc_ref, slot_data)
@@ -166,7 +155,7 @@ def write_data(data, expected_etag=None):
         batch.set(meta_ref, {'version': new_version})
         
         batch.commit()
-        return True, None
+        return True, new_version
     except Exception as e:
         logging.error(f"Firestore Write Error: {e}")
         return False, "error"
@@ -201,11 +190,14 @@ def save_data():
     # Get ETag from header
     if_match = request.headers.get('If-Match')
     
-    success, error_code = write_data(data, expected_etag=if_match)
+    success, result = write_data(data, expected_etag=if_match)
     
     if success:
-        return jsonify({"status": "success"})
-    elif error_code == "conflict":
+        # result is new_version
+        response = jsonify({"status": "success"})
+        response.headers['ETag'] = result
+        return response
+    elif result == "conflict":
         return jsonify({"error": "Data conflict. Please refresh."}), 409
     else:
         return jsonify({"status": "error"}), 500

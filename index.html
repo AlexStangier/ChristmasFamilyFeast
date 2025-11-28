@@ -768,7 +768,14 @@
                     if (syncStatus.value === 'syncing' && !isFirstLoad.value) return;
 
                     try {
-                        const res = await fetch(API_ENDPOINT);
+                        const headers = currentETag.value ? { 'If-None-Match': currentETag.value } : {};
+                        const res = await fetch(API_ENDPOINT, { headers });
+                        
+                        if (res.status === 304) {
+                            // Not modified, all good
+                            return;
+                        }
+
                         if (!res.ok) throw new Error('Network error');
                         
                         // Capture ETag
@@ -778,22 +785,27 @@
                         const data = await res.json();
                         const serverSlots = data.slots || data;
                         const serverGroceries = data.groceries || [];
+                        const serverSettings = data.settings || { organizerPin: '' };
 
                         // Deep compare to see if we even need to merge (optimization)
-                        const currentString = JSON.stringify({ slots: mealSlots.value, groceries: groceryList.value });
-                        const serverString = JSON.stringify({ slots: serverSlots, groceries: serverGroceries });
+                        const currentString = JSON.stringify({ slots: mealSlots.value, groceries: groceryList.value, settings: globalSettings.value });
+                        const serverString = JSON.stringify({ slots: serverSlots, groceries: serverGroceries, settings: serverSettings });
                         
                         if (currentString !== serverString) {
                             if (isFirstLoad.value) {
                                 // First load: Replace completely
                                 mealSlots.value = serverSlots;
                                 groceryList.value = serverGroceries;
+                                globalSettings.value = serverSettings;
                                 console.log("Initial data loaded");
                                 isFirstLoad.value = false;
                             } else {
                                 // Subsequent loads: Merge to be safe
                                 performSmartMerge(mealSlots.value, serverSlots);
                                 performSmartMergeGroceries(groceryList.value, serverGroceries);
+                                if (JSON.stringify(globalSettings.value) !== JSON.stringify(serverSettings)) {
+                                    globalSettings.value = serverSettings;
+                                }
                                 console.log("Background sync merged new data");
                             }
                         }
@@ -885,13 +897,17 @@
                         const res = await fetch(API_ENDPOINT, {
                             method: 'POST',
                             headers: headers,
-                            body: JSON.stringify({ slots: mealSlots.value, groceries: groceryList.value })
+                            body: JSON.stringify({ 
+                                slots: mealSlots.value, 
+                                groceries: groceryList.value,
+                                settings: globalSettings.value
+                            })
                         });
 
                         if (res.status === 409) {
                             console.warn("Conflict detected (409). Merging and retrying...");
                             
-                            // 1. Fetch latest Server Data
+                            // 1. Fetch latest Server Data (FORCE, no ETag to get full data)
                             const fetchRes = await fetch(API_ENDPOINT);
                             if (!fetchRes.ok) throw new Error('Fetch failed during merge');
                             
@@ -902,6 +918,7 @@
                             // 2. Smart Merge (Server -> Local)
                             performSmartMerge(mealSlots.value, serverData.slots || serverData);
                             performSmartMergeGroceries(groceryList.value, serverData.groceries || []);
+                            if (serverData.settings) globalSettings.value = serverData.settings;
 
                             // 3. Retry Save (Recursive)
                             return saveData(retryCount + 1);
@@ -909,10 +926,14 @@
 
                         if (!res.ok) throw new Error('Save failed');
 
-                        // Success - Fetch ETag for next time (fast, low payload usually)
-                        // Or just assume our write is authoritative. 
-                        // Safer to fetch headers.
-                        fetchData();
+                        // Success - Update ETag from response immediately
+                        const newETag = res.headers.get('ETag');
+                        if (newETag) {
+                            currentETag.value = newETag;
+                        } else {
+                            // Fallback if header missing (shouldn't happen with new backend)
+                            fetchData(); 
+                        }
 
                         syncStatus.value = 'saved';
                         syncMessage.value = 'Alle Änderungen gespeichert';
@@ -922,6 +943,7 @@
                         syncMessage.value = 'Sync Fehler - Erneuter Versuch...';
                     }
                 };
+
 
                 const debouncedSave = () => {
                     if (isFirstLoad.value) return; // Don't save on initial empty state
