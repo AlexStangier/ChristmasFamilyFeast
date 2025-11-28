@@ -648,6 +648,7 @@
                 // -- API Sync Logic --
                 const API_ENDPOINT = '/api/data';
                 let saveTimeout = null;
+                const currentETag = ref(null); // Store server version
 
                 const fetchData = async () => {
                     // If we are currently typing/saving, don't fetch to avoid jitter
@@ -656,6 +657,11 @@
                     try {
                         const res = await fetch(API_ENDPOINT);
                         if (!res.ok) throw new Error('Network error');
+                        
+                        // Capture ETag
+                        const etag = res.headers.get('ETag');
+                        if (etag) currentETag.value = etag;
+
                         const data = await res.json();
 
                         // Simple deep compare could go here, but for now we just replace
@@ -678,13 +684,37 @@
                     syncMessage.value = 'Synchronisiere mit Cloud...';
 
                     try {
+                        const headers = { 'Content-Type': 'application/json' };
+                        // Send If-Match if we have an ETag
+                        if (currentETag.value) {
+                            headers['If-Match'] = currentETag.value;
+                        }
+
                         const res = await fetch(API_ENDPOINT, {
                             method: 'POST',
-                            headers: { 'Content-Type': 'application/json' },
+                            headers: headers,
                             body: JSON.stringify({ slots: mealSlots.value, groceries: groceryList.value })
                         });
 
+                        if (res.status === 409) {
+                            // Conflict!
+                            syncStatus.value = 'error';
+                            syncMessage.value = 'Konflikt! Daten wurden extern geändert.';
+                            if (confirm("Jemand anderes hat Änderungen vorgenommen. Seite neu laden, um Datenverlust zu vermeiden?")) {
+                                window.location.reload();
+                            }
+                            return;
+                        }
+
                         if (!res.ok) throw new Error('Save failed');
+
+                        // On success, we assume our version is now current, but ideally we should get a new ETag.
+                        // For now, next poll will update ETag, or we could optimistically update if server returned it.
+                        // We will rely on polling to catch up ETag if we continue editing.
+                        // Actually, to prevent immediate subsequent save fail, we should probably fetch immediately?
+                        // Or just clear ETag and let next fetch handle it? 
+                        // Safest: Refetch immediately to get new ETag.
+                        fetchData();
 
                         syncStatus.value = 'saved';
                         syncMessage.value = 'Alle Änderungen gespeichert';

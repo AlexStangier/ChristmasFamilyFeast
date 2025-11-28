@@ -15,45 +15,97 @@ LOCAL_FILE = 'local_data.json'
 logging.basicConfig(level=logging.INFO)
 
 def read_data():
-    """Reads JSON from GCS or local file."""
+    """Reads JSON from GCS or local file. Returns (data, etag)."""
     if BUCKET_NAME:
         try:
             storage_client = storage.Client()
             bucket = storage_client.bucket(BUCKET_NAME)
             blob = bucket.blob(BLOB_NAME)
+            
+            # Force reload to get metadata (generation)
+            blob.reload()
+            
             if blob.exists():
-                return json.loads(blob.download_as_string())
-            return {} # Return empty dict if file doesn't exist yet
+                data = json.loads(blob.download_as_string())
+                # Use generation as ETag
+                return data, str(blob.generation)
+            return {}, "0"
         except Exception as e:
+            # If blob doesn't exist (404), generation is 0
+            if "404" in str(e):
+                return {}, "0"
             logging.error(f"GCS Read Error: {e}")
-            return {}
+            return {}, None
     else:
         # Local Fallback
         if os.path.exists(LOCAL_FILE):
-            with open(LOCAL_FILE, 'r') as f:
-                return json.load(f)
-        return {}
+            try:
+                with open(LOCAL_FILE, 'r') as f:
+                    content = f.read()
+                    data = json.loads(content)
+                    # Use simple hash of content as ETag for local dev
+                    etag = str(hash(content))
+                    return data, etag
+            except Exception as e:
+                logging.error(f"Local Read Error: {e}")
+                return {}, None
+        return {}, "0"
 
-def write_data(data):
-    """Writes JSON to GCS or local file."""
+def write_data(data, expected_etag=None):
+    """Writes JSON to GCS or local file with optimistic locking."""
     if BUCKET_NAME:
         try:
             storage_client = storage.Client()
             bucket = storage_client.bucket(BUCKET_NAME)
             blob = bucket.blob(BLOB_NAME)
-            blob.upload_from_string(
-                json.dumps(data),
-                content_type='application/json'
-            )
-            return True
+            
+            if expected_etag and expected_etag != "0":
+                # Optimistic locking using GCS preconditions
+                blob.upload_from_string(
+                    json.dumps(data),
+                    content_type='application/json',
+                    if_generation_match=int(expected_etag)
+                )
+            else:
+                # No previous version expected (first write)
+                # Or force overwrite if expected_etag is None (but we should try to avoid this)
+                blob.upload_from_string(
+                    json.dumps(data),
+                    content_type='application/json'
+                )
+            return True, None
         except Exception as e:
+            if "412" in str(e) or "conditionNotMet" in str(e):
+                 return False, "conflict"
             logging.error(f"GCS Write Error: {e}")
-            return False
+            return False, "error"
     else:
-        # Local Fallback
-        with open(LOCAL_FILE, 'w') as f:
-            json.dump(data, f, indent=2)
-        return True
+        # Local Fallback with Atomic Write + "Optimistic Locking" simulation
+        try:
+            # check current version first
+            if expected_etag and expected_etag != "0":
+                if os.path.exists(LOCAL_FILE):
+                    with open(LOCAL_FILE, 'r') as f:
+                        current_content = f.read()
+                        current_etag = str(hash(current_content))
+                        if current_etag != expected_etag:
+                            return False, "conflict"
+            
+            # Atomic Write: Write to temp then rename
+            import tempfile
+            tmp_fd, tmp_path = tempfile.mkstemp(dir='.', text=True)
+            try:
+                with os.fdopen(tmp_fd, 'w') as tmp:
+                    json.dump(data, tmp, indent=2)
+                os.replace(tmp_path, LOCAL_FILE)
+            except Exception as e:
+                os.remove(tmp_path)
+                raise e
+                
+            return True, None
+        except Exception as e:
+            logging.error(f"Local Write Error: {e}")
+            return False, "error"
 
 @app.route('/')
 def index():
@@ -63,8 +115,11 @@ def index():
 @app.route('/api/data', methods=['GET'])
 def get_data():
     """Endpoint for frontend polling."""
-    data = read_data()
-    return jsonify(data)
+    data, etag = read_data()
+    response = jsonify(data)
+    if etag:
+        response.headers['ETag'] = etag
+    return response
 
 @app.route('/api/data', methods=['POST'])
 def save_data():
@@ -73,9 +128,19 @@ def save_data():
     if data is None:
         return jsonify({"error": "No JSON provided"}), 400
     
-    success = write_data(data)
+    # Get ETag from header
+    if_match = request.headers.get('If-Match')
+    
+    success, error_code = write_data(data, expected_etag=if_match)
+    
     if success:
+        # Return new ETag? ideally yes, but client can just refetch or assume it's current.
+        # Actually, for correctness, we should return the new ETag.
+        # But write_data doesn't return it easily without re-reading.
+        # Let's ask client to re-fetch or just return success.
         return jsonify({"status": "success"})
+    elif error_code == "conflict":
+        return jsonify({"error": "Data conflict. Please refresh."}), 409
     else:
         return jsonify({"status": "error"}), 500
 
