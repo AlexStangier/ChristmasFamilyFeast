@@ -30,12 +30,9 @@ createApp({
         const showExportModal = ref(false);
         const exportText = ref("");
 
-        // Settings & PIN
-        const globalSettings = ref({ organizerPin: '' });
+        // Settings
+        const globalSettings = ref({});
         const showSettingsModal = ref(false);
-        const showPinEntryModal = ref(false);
-        const pinEntryValue = ref("");
-        const pinError = ref(false);
 
         // Sync State
         const syncStatus = ref('saved'); // 'saved', 'syncing', 'error'
@@ -81,7 +78,7 @@ createApp({
                 const serverSlots = data.slots || data;
                 const serverGroceries = data.groceries || [];
                 const serverActivity = data.activity || [];
-                const serverSettings = data.settings || { organizerPin: '' };
+                const serverSettings = data.settings || {};
 
                 // Deep compare to see if we even need to update
                 const currentString = JSON.stringify({ slots: mealSlots.value, groceries: groceryList.value, activity: activityLog.value, settings: globalSettings.value });
@@ -340,10 +337,7 @@ createApp({
             showSettingsModal.value = true;
         };
 
-        const saveSettingsPin = (newPin) => {
-            globalSettings.value.organizerPin = newPin;
-            saveData(); // Persist immediately
-        };
+
 
         const clearLocalData = () => {
             if (confirm("Wirklich alle lokalen Daten löschen und App neu laden?")) {
@@ -354,30 +348,11 @@ createApp({
 
         // -- Actions --
         const login = (role) => {
-            if (role === 'Organisator' && globalSettings.value.organizerPin) {
-                // Prompt PIN
-                pinEntryValue.value = "";
-                pinError.value = false;
-                showPinEntryModal.value = true;
-                return;
-            }
-            performLogin(role);
-        };
-
-        const performLogin = (role) => {
             currentUser.value = role;
             localStorage.setItem('christmas_role', role);
-            showPinEntryModal.value = false;
         };
 
-        const verifyPin = () => {
-            if (pinEntryValue.value === globalSettings.value.organizerPin) {
-                performLogin('Organisator');
-            } else {
-                pinError.value = true;
-                pinEntryValue.value = "";
-            }
-        };
+
 
         const logout = () => {
             currentUser.value = null;
@@ -1111,8 +1086,7 @@ createApp({
             isCopyMode, startCopyMode, stopCopyMode, isTargetSlot, handleSlotCopyClick, duplicateSource,
             retryLoadingIngredients, loadingIngredientsFor,
             dayContainer, canScrollLeft, canScrollRight, checkScroll, scrollDays,
-            globalSettings, showSettingsModal, openSettings, saveSettingsPin, clearLocalData, resetEvent,
-            showPinEntryModal, pinEntryValue, pinError, verifyPin,
+            globalSettings, showSettingsModal, openSettings, clearLocalData, resetEvent,
             getSlotCalories, getDailyCalories, toggleVote
         };
     }
