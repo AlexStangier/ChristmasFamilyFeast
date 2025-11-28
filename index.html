@@ -99,6 +99,19 @@
             <i class="ph-fill ph-snowflake absolute -bottom-4 -right-4 text-8xl text-white opacity-20"></i>
         </header>
 
+        <!-- Copy Mode Banner -->
+        <div v-if="isCopyMode" class="fixed bottom-8 left-1/2 -translate-x-1/2 z-50 animate-fade-in">
+            <div class="bg-xmas-dark text-white p-4 rounded-full shadow-2xl flex items-center gap-4 border-2 border-xmas-gold">
+                <div class="flex flex-col">
+                    <span class="font-bold text-sm">Kopiermodus aktiv</span>
+                    <span class="text-xs opacity-75">Wähle Tage für "{{ duplicateSource?.proposal.name }}"</span>
+                </div>
+                <button @click="stopCopyMode" class="bg-white text-xmas-dark px-4 py-2 rounded-full font-bold hover:bg-gray-200 transition-colors">
+                    Fertig
+                </button>
+            </div>
+        </div>
+
         <!-- Role Selection (Login) -->
         <div v-if="!currentUser"
             class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm">
@@ -149,7 +162,22 @@
 
                         <div v-for="type in mealTypes" :key="type" class="flex flex-col h-full">
                             <div
-                                class="snow-card p-4 flex flex-col gap-3 relative min-h-[160px] h-full transition-all hover:shadow-md">
+                                class="snow-card p-4 flex flex-col gap-3 relative min-h-[160px] h-full transition-all hover:shadow-md overflow-hidden">
+
+                                <!-- Copy Mode Overlay -->
+                                <div v-if="isCopyMode" 
+                                    @click.stop="handleSlotCopyClick(day.date, type)"
+                                    class="absolute inset-0 z-50 flex items-center justify-center transition-all duration-300"
+                                    :class="isTargetSlot(day.date, type) 
+                                        ? 'bg-xmas-green/10 cursor-pointer hover:bg-xmas-green/20 ring-4 ring-inset ring-xmas-gold animate-pulse' 
+                                        : 'bg-gray-100/80 backdrop-blur-[1px] cursor-not-allowed'">
+                                    
+                                    <div v-if="isTargetSlot(day.date, type)" 
+                                        class="bg-white text-xmas-green font-bold px-4 py-2 rounded-full shadow-lg transform hover:scale-110 transition-transform flex items-center gap-2">
+                                        <i class="ph-bold ph-copy-simple"></i>
+                                        <span>Hier einfügen</span>
+                                    </div>
+                                </div>
 
                                 <!-- Slot Header -->
                                 <div class="flex justify-between items-center border-b border-gray-100 pb-2">
@@ -203,7 +231,7 @@
                                                         <i class="ph-bold ph-trash text-sm"></i>
                                                     </button>
                                                     <button v-if="type === 'Dessert' && !slotIsApproved(day.date, type)"
-                                                        @click="duplicateDessert(day.date, prop)"
+                                                        @click="startCopyMode(day.date, prop)"
                                                         class="opacity-0 group-hover:opacity-100 transition-opacity text-gray-400 hover:text-xmas-gold p-1"
                                                         title="Zu anderen Tagen kopieren">
                                                         <i class="ph-bold ph-copy text-sm"></i>
@@ -273,10 +301,20 @@
                 </div>
                 <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
                     <div v-for="(item, index) in mergedGroceryList" :key="index"
-                        class="flex items-center gap-2 p-2 bg-white rounded border border-gray-100 shadow-sm">
+                        class="flex items-center gap-2 p-2 bg-white rounded border border-gray-100 shadow-sm"
+                        :class="{'border-xmas-gold/50 bg-yellow-50': item.isPlaceholder}">
                         <input type="checkbox"
                             class="w-4 h-4 text-xmas-green rounded focus:ring-xmas-green accent-xmas-green shrink-0">
-                        <span class="flex-1 text-gray-700 text-sm">{{ item }}</span>
+                        
+                        <span class="flex-1 text-gray-700 text-sm break-words">{{ item.text }}</span>
+                        
+                        <button v-if="item.isPlaceholder" 
+                            @click="retryLoadingIngredients(item)"
+                            class="text-xmas-gold hover:text-xmas-dark transition-colors p-1"
+                            title="Zutaten laden"
+                            :disabled="loadingIngredientsFor === item.proposalId">
+                            <i class="ph-bold" :class="loadingIngredientsFor === item.proposalId ? 'ph-spinner animate-spin' : 'ph-arrow-clockwise'"></i>
+                        </button>
                     </div>
                     <!-- Add new item -->
                     <div
@@ -455,47 +493,7 @@
             </div>
         </div>
 
-        <!-- Duplicate Dessert Modal -->
-        <div v-if="showDuplicateModal"
-            class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm"
-            @click.self="closeDuplicateModal">
-            <div class="snow-card w-full max-w-md p-6 relative">
-                <button @click="closeDuplicateModal" class="absolute top-4 right-4 text-gray-400 hover:text-gray-600">
-                    <i class="ph-bold ph-x text-xl"></i>
-                </button>
-
-                <h3 class="text-xl font-bold text-gray-800 mb-4 flex items-center gap-2">
-                    <i class="ph-bold ph-copy text-xmas-gold"></i>
-                    Dessert kopieren
-                </h3>
-
-                <p class="text-sm text-gray-600 mb-4">
-                    Wähle die Tage aus, an denen du "<strong>{{ duplicateSource?.proposal.name }}</strong>" als Dessert
-                    vorschlagen möchtest:
-                </p>
-
-                <div class="space-y-2 mb-6">
-                    <label v-for="day in days" :key="day.date" v-if="day.date !== duplicateSource?.date"
-                        class="flex items-center gap-3 p-3 rounded-lg border border-gray-200 hover:border-xmas-gold hover:bg-xmas-gold/5 cursor-pointer transition-colors">
-                        <input type="checkbox" :value="day.date" v-model="selectedDuplicateDays"
-                            class="w-4 h-4 text-xmas-gold rounded focus:ring-xmas-gold accent-xmas-gold">
-                        <span class="text-sm font-medium text-gray-700">{{ formatDate(day.date) }}</span>
-                    </label>
-                </div>
-
-                <div class="flex gap-3">
-                    <button @click="closeDuplicateModal"
-                        class="flex-1 px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors">
-                        Abbrechen
-                    </button>
-                    <button @click="confirmDuplicate" :disabled="selectedDuplicateDays.length === 0"
-                        :class="selectedDuplicateDays.length === 0 ? 'opacity-50 cursor-not-allowed' : 'hover:bg-green-700'"
-                        class="flex-1 px-4 py-2 bg-xmas-green text-white rounded-lg transition-colors font-bold">
-                        Kopieren ({{ selectedDuplicateDays.length }})
-                    </button>
-                </div>
-            </div>
-        </div>
+        <!-- Recipe Modal -->
 
         <!-- Export Modal -->
         <div v-if="showExportModal"
@@ -1056,47 +1054,52 @@
                     }
                 };
 
-                // -- Duplicate Dessert --
+                // -- Copy/Paste Mode (formerly Duplicate) --
 
-                const duplicateDessert = (sourceDate, proposal) => {
+                const isCopyMode = computed(() => !!duplicateSource.value);
+
+                const startCopyMode = (sourceDate, proposal) => {
                     duplicateSource.value = { date: sourceDate, proposal };
-                    selectedDuplicateDays.value = [];
-                    showDuplicateModal.value = true;
                 };
 
-                const confirmDuplicate = () => {
-                    if (!duplicateSource.value || selectedDuplicateDays.value.length === 0) return;
+                const stopCopyMode = () => {
+                    duplicateSource.value = null;
+                };
+
+                const isTargetSlot = (date, type) => {
+                    if (!isCopyMode.value) return false;
+                    // Target must be Dessert and NOT the source date
+                    return type === 'Dessert' && date !== duplicateSource.value.date;
+                };
+
+                const handleSlotCopyClick = (targetDate, targetType) => {
+                    if (!isTargetSlot(targetDate, targetType)) return;
 
                     const { proposal } = duplicateSource.value;
+                    const key = getSlotKey(targetDate, targetType);
 
-                    selectedDuplicateDays.value.forEach(targetDate => {
-                        const key = getSlotKey(targetDate, 'Dessert');
-                        if (!mealSlots.value[key]) mealSlots.value[key] = { date: targetDate, type: 'Dessert', proposals: [] };
+                    if (!mealSlots.value[key]) mealSlots.value[key] = { date: targetDate, type: targetType, proposals: [] };
 
-                        // Create a copy of the proposal
-                        const newProposal = {
-                            id: crypto.randomUUID(),
-                            name: proposal.name,
-                            proposer: currentUser.value,
-                            votes: [currentUser.value],
-                            recipeUrl: proposal.recipeUrl,
-                            ingredients: proposal.ingredients ? [...proposal.ingredients] : [],
-                            instructions: proposal.instructions ? [...proposal.instructions] : []
-                        };
+                    // Check if already exists (by name)
+                    const exists = mealSlots.value[key].proposals.some(p => p.name.toLowerCase() === proposal.name.toLowerCase());
+                    if (exists) {
+                        alert(`"${proposal.name}" gibt es am ${formatDate(targetDate)} schon!`);
+                        return;
+                    }
 
-                        mealSlots.value[key].proposals.push(newProposal);
-                        logActivity('add', `hat "${proposal.name}" für Dessert am ${formatDate(targetDate)} kopiert`);
-                    });
+                    // Create copy
+                    const newProposal = {
+                        id: crypto.randomUUID(),
+                        name: proposal.name,
+                        proposer: currentUser.value,
+                        votes: [currentUser.value],
+                        recipeUrl: proposal.recipeUrl,
+                        ingredients: proposal.ingredients ? [...proposal.ingredients] : [],
+                        instructions: proposal.instructions ? [...proposal.instructions] : []
+                    };
 
-                    showDuplicateModal.value = false;
-                    duplicateSource.value = null;
-                    selectedDuplicateDays.value = [];
-                };
-
-                const closeDuplicateModal = () => {
-                    showDuplicateModal.value = false;
-                    duplicateSource.value = null;
-                    selectedDuplicateDays.value = [];
+                    mealSlots.value[key].proposals.push(newProposal);
+                    logActivity('add', `hat "${proposal.name}" kopiert nach ${formatDate(targetDate)}`);
                 };
 
                 // -- Activity Log --
@@ -1193,8 +1196,9 @@
                     editingGroceryIndex, editingGroceryText, newGroceryItem,
                     startEditGrocery, saveGroceryEdit, cancelGroceryEdit, removeGroceryItem, addGroceryItem,
                     activityLog, showActivityLog, formatLogTime, mergedGroceryList,
-                    showDuplicateModal, duplicateSource, selectedDuplicateDays, duplicateDessert, confirmDuplicate, closeDuplicateModal,
-                    showExportModal, exportText, openExportModal
+                    showExportModal, exportText, openExportModal,
+                    isCopyMode, startCopyMode, stopCopyMode, isTargetSlot, handleSlotCopyClick, duplicateSource,
+                    retryLoadingIngredients, loadingIngredientsFor
                 };
             }
         }).mount('#app');
