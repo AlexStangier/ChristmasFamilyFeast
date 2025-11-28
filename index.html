@@ -1383,15 +1383,23 @@
                         
                         let formattedText = "";
                         
-                        // Define order
-                        const order = ["Obst & Gemüse", "Kühlregal", "Fleisch & Fisch", "Vorratsschrank", "Getränke", "Haushalt & Sonstiges"];
+                        // Define order and emojis
+                        const categoryMap = {
+                            "Obst & Gemüse": "🍎 Obst & Gemüse",
+                            "Kühlregal": "🥛 Kühlregal",
+                            "Fleisch & Fisch": "🥩 Fleisch & Fisch",
+                            "Vorratsschrank": "🍝 Vorratsschrank",
+                            "Getränke": "🥤 Getränke",
+                            "Haushalt & Sonstiges": "🏠 Haushalt & Sonstiges"
+                        };
+                        const order = Object.keys(categoryMap);
                         
                         // Helper to find the full item object (with sources) based on the text
                         const findItem = (text) => items.find(i => i.text === text);
 
                         order.forEach(cat => {
                             if (categories[cat] && categories[cat].length > 0) {
-                                formattedText += `\n## ${cat.toUpperCase()}\n`;
+                                formattedText += `\n## ${categoryMap[cat]}\n`;
                                 categories[cat].forEach(text => {
                                     const item = findItem(text);
                                     let line = `- [ ] ${text}`;
