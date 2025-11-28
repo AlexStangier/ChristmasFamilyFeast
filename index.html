@@ -669,8 +669,9 @@
                 const isLeading = (proposal, date, type) => {
                     const props = getProposals(date, type);
                     if (!props.length) return false;
-                    const max = (props[0].votes || []).length;
-                    return max > 0 && (proposal.votes || []).length === max;
+                    const maxVotes = Math.max(...props.map(p => (p.votes || []).length));
+                    const proposalVotes = (proposal.votes || []).length;
+                    return maxVotes > 0 && proposalVotes === maxVotes && proposalVotes > 0;
                 };
 
                 const getProposalClass = (proposal, date, type) => {
