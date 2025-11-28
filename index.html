@@ -262,9 +262,14 @@
         <!-- Grocery List Section -->
         <section v-if="groceryList.length > 0" class="w-full max-w-6xl mt-8 mb-8">
             <div class="snow-card p-6 border-t-4 border-xmas-gold">
-                <div class="flex items-center gap-3 mb-4">
-                    <i class="ph-fill ph-basket text-3xl text-xmas-gold"></i>
-                    <h2 class="font-festive text-3xl text-gray-800">Einkaufsliste</h2>
+                <div class="flex items-center justify-between mb-4">
+                    <div class="flex items-center gap-3">
+                        <i class="ph-fill ph-basket text-3xl text-xmas-gold"></i>
+                        <h2 class="font-festive text-3xl text-gray-800">Einkaufsliste</h2>
+                    </div>
+                    <button @click="openExportModal" class="text-sm bg-gray-100 hover:bg-gray-200 text-gray-600 px-3 py-1.5 rounded-lg transition-colors flex items-center gap-2">
+                         <i class="ph-bold ph-export"></i> Exportieren
+                    </button>
                 </div>
                 <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
                     <div v-for="(item, index) in mergedGroceryList" :key="index"
@@ -492,6 +497,28 @@
             </div>
         </div>
 
+        <!-- Export Modal -->
+        <div v-if="showExportModal"
+            class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm"
+            @click.self="showExportModal = false">
+            <div class="snow-card w-full max-w-md p-6 relative">
+                <button @click="showExportModal = false" class="absolute top-4 right-4 text-gray-400 hover:text-gray-600">
+                    <i class="ph-bold ph-x text-xl"></i>
+                </button>
+
+                <h3 class="font-festive text-2xl text-xmas-green mb-4">Einkaufsliste Export</h3>
+                
+                <textarea 
+                    readonly 
+                    class="w-full h-64 p-3 border border-gray-200 rounded-lg text-sm font-mono text-gray-700 focus:outline-none focus:border-xmas-gold bg-gray-50 resize-none"
+                    :value="exportText"
+                    @click="$event.target.select()"
+                ></textarea>
+
+                <p class="text-xs text-gray-400 mt-2 text-center">Text kopieren und teilen!</p>
+            </div>
+        </div>
+
         <!-- Activity Log Tab -->
         <div class="fixed bottom-0 right-4 z-50">
             <!-- Collapsed Tab -->
@@ -601,6 +628,9 @@
                 const showDuplicateModal = ref(false);
                 const duplicateSource = ref(null);
                 const selectedDuplicateDays = ref([]);
+
+                const showExportModal = ref(false);
+                const exportText = ref("");
 
                 // Sync State
                 const syncStatus = ref('saved'); // 'saved', 'syncing', 'error'
@@ -1109,7 +1139,7 @@
                     return { quantity: null, unit: '', name: ingredient.trim() };
                 };
 
-                const mergedGroceryList = computed(() => {
+                const getMergedItems = () => {
                     const merged = {};
 
                     groceryList.value.forEach(item => {
@@ -1127,9 +1157,11 @@
                             merged[key] = { ...parsed };
                         }
                     });
+                    return Object.values(merged);
+                };
 
-                    // Convert back to display strings
-                    return Object.values(merged).map(item => {
+                const mergedGroceryList = computed(() => {
+                    return getMergedItems().map(item => {
                         if (item.quantity !== null) {
                             const qty = item.quantity % 1 === 0 ? item.quantity : item.quantity.toFixed(1);
                             return `${qty}${item.unit ? item.unit : ''} ${item.name}`;
@@ -1137,6 +1169,18 @@
                         return item.name;
                     }).sort();
                 });
+
+                const openExportModal = () => {
+                    const items = getMergedItems().sort((a, b) => a.name.localeCompare(b.name));
+                    exportText.value = items.map(item => {
+                        if (item.quantity !== null) {
+                            const qty = item.quantity % 1 === 0 ? item.quantity : item.quantity.toFixed(1);
+                            return `${item.name}: ${qty}${item.unit ? item.unit : ''}`;
+                        }
+                        return item.name;
+                    }).join('\n');
+                    showExportModal.value = true;
+                };
 
                 return {
                     currentUser, roles, days, mealTypes, login, logout,
@@ -1149,7 +1193,8 @@
                     editingGroceryIndex, editingGroceryText, newGroceryItem,
                     startEditGrocery, saveGroceryEdit, cancelGroceryEdit, removeGroceryItem, addGroceryItem,
                     activityLog, showActivityLog, formatLogTime, mergedGroceryList,
-                    showDuplicateModal, duplicateSource, selectedDuplicateDays, duplicateDessert, confirmDuplicate, closeDuplicateModal
+                    showDuplicateModal, duplicateSource, selectedDuplicateDays, duplicateDessert, confirmDuplicate, closeDuplicateModal,
+                    showExportModal, exportText, openExportModal
                 };
             }
         }).mount('#app');
