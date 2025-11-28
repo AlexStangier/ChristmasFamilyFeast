@@ -141,7 +141,6 @@ createApp({
                         if (sProp.recipeUrl && !lProp.recipeUrl) lProp.recipeUrl = sProp.recipeUrl;
                         if (sProp.ingredients?.length && !lProp.ingredients?.length) lProp.ingredients = sProp.ingredients;
                         if (sProp.instructions?.length && !lProp.instructions?.length) lProp.instructions = sProp.instructions;
-                        if (sProp.calories && !lProp.calories) lProp.calories = sProp.calories;
 
                         // 3. Approval status
                         lProp.approved = sProp.approved;
@@ -420,7 +419,6 @@ createApp({
                     if (data.url) proposal.recipeUrl = data.url;
                     if (data.ingredients) proposal.ingredients = data.ingredients;
                     if (data.instructions) proposal.instructions = data.instructions;
-                    if (data.calories) proposal.calories = data.calories;
                 } catch (e) {
                     console.error("Recipe fetch failed during approval", e);
                 } finally {
@@ -623,7 +621,6 @@ createApp({
                 if (data.url) proposal.recipeUrl = data.url;
                 if (data.ingredients) proposal.ingredients = data.ingredients;
                 if (data.instructions) proposal.instructions = data.instructions;
-                if (data.calories) proposal.calories = data.calories;
             } catch (e) {
                 console.error("Recipe lookup failed", e);
                 // Don't alert, just fail silently in background
@@ -1054,22 +1051,7 @@ createApp({
             alert("Das Event wurde zurückgesetzt.");
         };
 
-        // -- Calorie Helpers --
-        const getSlotCalories = (date, type) => {
-            const key = getSlotKey(date, type);
-            const slot = mealSlots.value[key];
-            if (slot && slot.approved && slot.proposals) {
-                const winner = slot.proposals.find(p => p.approved);
-                if (winner) {
-                    return winner.calories || 0;
-                }
-            }
-            return 0;
-        };
 
-        const getDailyCalories = (date) => {
-            return mealTypes.reduce((sum, type) => sum + getSlotCalories(date, type), 0);
-        };
 
         return {
             currentUser, roles, days, mealTypes, login, logout,
@@ -1087,7 +1069,7 @@ createApp({
             retryLoadingIngredients, loadingIngredientsFor,
             dayContainer, canScrollLeft, canScrollRight, checkScroll, scrollDays,
             globalSettings, showSettingsModal, openSettings, clearLocalData, resetEvent,
-            getSlotCalories, getDailyCalories, toggleVote
+            toggleVote
         };
     }
 }).mount('#app');

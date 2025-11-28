@@ -262,22 +262,19 @@ def get_recipe_info():
         1. A REAL, WORKING URL to an authentic recipe from a popular German recipe website.
         2. A list of main ingredients needed for a grocery list (in German), calculated for 10 people.
         3. A brief summary of cooking instructions (3-5 steps) in German.
-        4. An estimate of calories per serving (kcal) as an integer.
         
         Return ONLY valid JSON in this format:
         {{
             "url": "https://www.chefkoch.de/rezepte/...",
             "ingredients": ["Ingredient 1", "Ingredient 2"],
-            "instructions": ["Step 1...", "Step 2..."],
-            "calories": 650
+            "instructions": ["Step 1...", "Step 2..."]
         }}
         
-        If no real recipe URL can be found, use null for url but still estimate calories/ingredients:
+        If no real recipe URL can be found, use null for url but still estimate ingredients:
         {{
             "url": null,
             "ingredients": ["Ingredient 1", "Ingredient 2"],
-            "instructions": ["Step 1...", "Step 2..."],
-            "calories": 500
+            "instructions": ["Step 1...", "Step 2..."]
         }}
         """
         response = model.generate_content(prompt)
