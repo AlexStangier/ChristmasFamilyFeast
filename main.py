@@ -105,7 +105,7 @@ def get_recipe_info():
         return jsonify({"error": "No dish name provided"}), 400
 
     try:
-        model = GenerativeModel("gemini-pro")
+        model = GenerativeModel("gemini-2.5-pro")
         prompt = f"""
         For the dish "{dish_name}", please provide:
         1. A URL to a high-quality, authentic recipe (preferably in German if the dish name is German, otherwise English).
@@ -137,7 +137,7 @@ def suggest_dishes():
         return jsonify({"error": "No query provided"}), 400
 
     try:
-        model = GenerativeModel("gemini-pro")
+        model = GenerativeModel("gemini-1.5-flash")
         prompt = f"""
         Suggest 5 popular Christmas or festive dishes (in German) that match the search term "{query}".
         Return ONLY a JSON array of strings, e.g.: ["Dish 1", "Dish 2"]

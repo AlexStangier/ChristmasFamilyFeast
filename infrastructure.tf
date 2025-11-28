@@ -56,8 +56,7 @@ resource "google_service_account" "app_sa" {
 # Grant the Service Account permission to read/write objects in the bucket and AI Platform access
 resource "google_project_iam_member" "app_sa_roles" {
   for_each = toset([
-    "roles/storage.objectViewer",
-    "roles/storage.objectCreator",
+    "roles/storage.objectUser",
     "roles/aiplatform.user"
   ])
   project = var.project_id
