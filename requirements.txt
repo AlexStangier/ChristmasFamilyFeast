@@ -1,4 +1,4 @@
 flask
 google-cloud-storage
 gunicorn
-google-generativeai
+google-cloud-aiplatform

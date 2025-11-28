@@ -53,11 +53,16 @@ resource "google_service_account" "app_sa" {
   display_name = "Christmas Planner Service Account"
 }
 
-# Grant the Service Account permission to read/write objects in the bucket
-resource "google_storage_bucket_iam_member" "sa_storage_admin" {
-  bucket = google_storage_bucket.data_bucket.name
-  role   = "roles/storage.objectAdmin"
-  member = "serviceAccount:${google_service_account.app_sa.email}"
+# Grant the Service Account permission to read/write objects in the bucket and AI Platform access
+resource "google_project_iam_member" "app_sa_roles" {
+  for_each = toset([
+    "roles/storage.objectViewer",
+    "roles/storage.objectCreator",
+    "roles/aiplatform.user"
+  ])
+  project = var.project_id
+  role    = each.key
+  member  = "serviceAccount:${google_service_account.app_sa.email}"
 }
 
 # -- 3. Cloud Run Service --
@@ -76,6 +81,14 @@ resource "google_cloud_run_v2_service" "default" {
       env {
         name  = "BUCKET_NAME"
         value = google_storage_bucket.data_bucket.name
+      }
+      env {
+        name  = "PROJECT_ID"
+        value = var.project_id
+      }
+      env {
+        name  = "REGION"
+        value = var.region
       }
 
       resources {

@@ -79,18 +79,25 @@ def save_data():
     else:
         return jsonify({"status": "error"}), 500
 
-import google.generativeai as genai
+import vertexai
+from vertexai.preview.generative_models import GenerativeModel
 
-# Configure Gemini
-GEMINI_API_KEY = os.environ.get('GEMINI_API_KEY')
-if GEMINI_API_KEY:
-    genai.configure(api_key=GEMINI_API_KEY)
+# Initialize Vertex AI
+PROJECT_ID = os.environ.get("PROJECT_ID")
+REGION = os.environ.get("REGION")
+
+if PROJECT_ID and REGION:
+    try:
+        vertexai.init(project=PROJECT_ID, location=REGION)
+        logging.info(f"Vertex AI initialized for {PROJECT_ID} in {REGION}")
+    except Exception as e:
+        logging.error(f"Failed to initialize Vertex AI: {e}")
 
 @app.route('/api/ai/recipe', methods=['POST'])
 def get_recipe_info():
     """Uses Gemini to find a recipe URL, ingredients, and instructions."""
-    if not GEMINI_API_KEY:
-        return jsonify({"error": "AI service not configured"}), 503
+    # Vertex AI doesn't need an API key check here, but we could check if init succeeded
+    # For now, we'll let the try/catch handle it
 
     data = request.json
     dish_name = data.get('dish_name')
@@ -98,7 +105,7 @@ def get_recipe_info():
         return jsonify({"error": "No dish name provided"}), 400
 
     try:
-        model = genai.GenerativeModel('gemini-pro')
+        model = GenerativeModel("gemini-pro")
         prompt = f"""
         For the dish "{dish_name}", please provide:
         1. A URL to a high-quality, authentic recipe (preferably in German if the dish name is German, otherwise English).
@@ -123,16 +130,14 @@ def get_recipe_info():
 @app.route('/api/ai/suggest', methods=['POST'])
 def suggest_dishes():
     """Uses Gemini to suggest dishes based on a query."""
-    if not GEMINI_API_KEY:
-        return jsonify({"error": "AI service not configured"}), 503
-
+    
     data = request.json
     query = data.get('query')
     if not query:
         return jsonify({"error": "No query provided"}), 400
 
     try:
-        model = genai.GenerativeModel('gemini-pro')
+        model = GenerativeModel("gemini-pro")
         prompt = f"""
         Suggest 5 popular Christmas or festive dishes (in German) that match the search term "{query}".
         Return ONLY a JSON array of strings, e.g.: ["Dish 1", "Dish 2"]
