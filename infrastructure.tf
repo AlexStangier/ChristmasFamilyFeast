@@ -30,6 +30,7 @@ variable "region" {
 variable "container_image" {
   description = "The URL of the container image to deploy (e.g., gcr.io/my-project/christmas-planner)"
   type        = string
+  default     = "gcr.io/cw-academy-sandbox-alex/christmas-planner"
 }
 
 # -- 1. GCS Bucket for JSON Data --
