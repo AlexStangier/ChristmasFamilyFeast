@@ -353,21 +353,47 @@
                             <div class="mt-auto pt-4 px-4">
                                 <div class="flex flex-col gap-1 items-center w-full">
                                     <div class="w-full bg-gray-200 rounded-full h-32 relative flex flex-col-reverse overflow-hidden shadow-inner border border-gray-300">
-                                        <!-- Fill Bar -->
-                                        <div class="w-full transition-all duration-1000 ease-out relative"
-                                            :style="{ height: Math.min((getDailyCalories(day.date) / 3000) * 100, 100) + '%' }"
-                                            :class="getDailyCalories(day.date) > 2500 ? 'bg-red-500' : (getDailyCalories(day.date) > 2000 ? 'bg-yellow-400' : 'bg-xmas-green')">
+                                        
+                                        <!-- Stacked Bars -->
+                                        <!-- Lunch (Bottom) -->
+                                        <div class="w-full bg-blue-400 transition-all duration-1000 ease-out border-t border-white/20 relative group/bar"
+                                            :style="{ height: (getSlotCalories(day.date, 'Mittagessen') / 3000 * 100) + '%' }">
+                                            <div v-if="getSlotCalories(day.date, 'Mittagessen') > 0" class="opacity-0 group-hover/bar:opacity-100 absolute inset-0 flex items-center justify-center text-[10px] font-bold text-white bg-black/20 transition-opacity">
+                                                Lunch
+                                            </div>
                                         </div>
                                         
-                                        <!-- Label overlay -->
-                                        <div class="absolute inset-0 flex items-end justify-center pb-2 pointer-events-none">
-                                             <span class="text-xs font-bold drop-shadow-md" 
-                                                :class="getDailyCalories(day.date) > 0 ? 'text-gray-700' : 'text-gray-400'">
-                                                {{ getDailyCalories(day.date) }} kcal
+                                        <!-- Dinner (Middle) -->
+                                        <div class="w-full bg-xmas-red transition-all duration-1000 ease-out border-t border-white/20 relative group/bar"
+                                            :style="{ height: (getSlotCalories(day.date, 'Abendessen') / 3000 * 100) + '%' }">
+                                            <div v-if="getSlotCalories(day.date, 'Abendessen') > 0" class="opacity-0 group-hover/bar:opacity-100 absolute inset-0 flex items-center justify-center text-[10px] font-bold text-white bg-black/20 transition-opacity">
+                                                Dinner
+                                            </div>
+                                        </div>
+
+                                        <!-- Dessert (Top) -->
+                                        <div class="w-full bg-xmas-gold transition-all duration-1000 ease-out border-t border-white/20 relative group/bar"
+                                            :style="{ height: (getSlotCalories(day.date, 'Dessert') / 3000 * 100) + '%' }">
+                                            <div v-if="getSlotCalories(day.date, 'Dessert') > 0" class="opacity-0 group-hover/bar:opacity-100 absolute inset-0 flex items-center justify-center text-[10px] font-bold text-white bg-black/20 transition-opacity">
+                                                Süßes
+                                            </div>
+                                        </div>
+
+                                        <!-- Total Label overlay -->
+                                        <div class="absolute top-1 left-0 w-full text-center pointer-events-none">
+                                             <span class="text-xs font-bold drop-shadow-md text-gray-500 bg-white/80 px-1 rounded" 
+                                                v-if="getDailyCalories(day.date) > 0">
+                                                {{ getDailyCalories(day.date) }}
                                              </span>
                                         </div>
                                     </div>
-                                    <span class="text-[10px] text-gray-500 font-bold uppercase tracking-widest">Kalorien</span>
+                                    
+                                    <!-- Legend -->
+                                    <div class="flex gap-2 justify-center mt-1">
+                                        <div class="flex items-center gap-1" title="Mittagessen"><span class="w-2 h-2 rounded-full bg-blue-400"></span></div>
+                                        <div class="flex items-center gap-1" title="Abendessen"><span class="w-2 h-2 rounded-full bg-xmas-red"></span></div>
+                                        <div class="flex items-center gap-1" title="Dessert"><span class="w-2 h-2 rounded-full bg-xmas-gold"></span></div>
+                                    </div>
                                 </div>
                             </div>
                         </div>
