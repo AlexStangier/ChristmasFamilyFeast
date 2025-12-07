@@ -169,6 +169,30 @@ createApp({
             });
         };
 
+        const reconcileGroceries = () => {
+            // Ensure all ingredients from APPROVED proposals are present
+            // This prevents "stealing" ingredients when one dish is un-approved but another needs the same item.
+            const needed = new Set();
+            for (const key in mealSlots.value) {
+                const slot = mealSlots.value[key];
+                if (slot.approved) {
+                    const prop = slot.proposals.find(p => p.approved);
+                    if (prop && prop.ingredients) {
+                        prop.ingredients.forEach(i => needed.add(i));
+                    }
+                }
+            }
+
+            const currentItems = new Set(groceryList.value.map(g => typeof g === 'string' ? g : g.text));
+
+            needed.forEach(item => {
+                if (!currentItems.has(item)) {
+                    groceryList.value.push(item);
+                    currentItems.add(item);
+                }
+            });
+        };
+
         const saveData = async (retryCount = 0) => {
             if (retryCount > 3) {
                 syncStatus.value = 'error';
@@ -393,18 +417,63 @@ createApp({
                 logActivity('vote', `hat für "${proposal.name}" gestimmt`);
             }
 
-            // Check for Consensus
-            const uniqueVoters = new Set(target.votes);
-            const allVoted = roles.every(r => uniqueVoters.has(r));
+            // -- Democracy Logic --
+            // 1. Check for Majority Winner
+            const props = getProposals(date, type);
+            const totalUsers = roles.length; // 4
+            const majorityThreshold = Math.floor(totalUsers / 2) + 1; // 3
 
-            if (allVoted && !slotIsApproved(date, type)) {
-                await approveDish(date, type, proposal);
+            // Find proposal with max votes
+            let maxVotes = 0;
+            let leader = null;
+            let tie = false;
+
+            props.forEach(p => {
+                const v = (p.votes || []).length;
+                if (v > maxVotes) {
+                    maxVotes = v;
+                    leader = p;
+                    tie = false;
+                } else if (v === maxVotes) {
+                    tie = true;
+                }
+            });
+
+            // Strict Majority Rule:
+            // - Must have at least 'majorityThreshold' votes (3)
+            // - Must be strictly leading (no tie at the top)
+            if (leader && maxVotes >= majorityThreshold && !tie) {
+                // Check if this leader is NOT already the approved one
+                if (!leader.approved) {
+                    console.log(`New Democratic Winner: ${leader.name} with ${maxVotes} votes`);
+                    await approveDish(date, type, leader);
+                }
             }
         };
 
         const approveDish = async (date, type, proposal) => {
             const key = getSlotKey(date, type);
             if (!mealSlots.value[key]) return;
+
+            // 1. Handle Switching: Unapprove currently approved proposal if exists
+            const currentApproved = mealSlots.value[key].proposals.find(p => p.approved);
+            if (currentApproved && currentApproved.id !== proposal.id) {
+                // Remove old ingredients
+                if (currentApproved.ingredients) {
+                    currentApproved.ingredients.forEach(ingredient => {
+                        const index = groceryList.value.findIndex(g => {
+                            const txt = typeof g === 'string' ? g : g.text;
+                            return txt === ingredient;
+                        });
+                        if (index > -1) groceryList.value.splice(index, 1);
+                    });
+                }
+                // Remove placeholders
+                const placeholderIndex = groceryList.value.findIndex(g => typeof g === 'object' && g.proposalId === currentApproved.id);
+                if (placeholderIndex > -1) groceryList.value.splice(placeholderIndex, 1);
+
+                currentApproved.approved = false;
+            }
 
             // If ingredients not loaded yet, fetch them first
             if (!proposal.ingredients || proposal.ingredients.length === 0) {
@@ -447,13 +516,28 @@ createApp({
                 });
             }
 
+            // Safety check to restore any shared ingredients that might have been removed
+            reconcileGroceries();
+
             logActivity('approve', `hat "${proposal.name}" genehmigt`);
         };
 
         const deleteProposal = (date, type, proposalId) => {
+            // Permission Check: Only proposer can delete
+            const key = getSlotKey(date, type);
+            if (mealSlots.value[key] && mealSlots.value[key].proposals) {
+                const proposal = mealSlots.value[key].proposals.find(p => p.id === proposalId);
+                if (!proposal) return;
+
+                if (currentUser.value !== proposal.proposer) {
+                    alert("Du kannst nur deine eigenen Vorschläge löschen!");
+                    return;
+                }
+            }
+
             if (!confirm("Möchtest du diesen Vorschlag wirklich löschen?")) return;
 
-            const key = getSlotKey(date, type);
+            // const key = getSlotKey(date, type); // Already declared above
             if (mealSlots.value[key] && mealSlots.value[key].proposals) {
                 const proposal = mealSlots.value[key].proposals.find(p => p.id === proposalId);
 
@@ -485,6 +569,9 @@ createApp({
                 if (proposal && proposal.approved) {
                     mealSlots.value[key].approved = false;
                 }
+
+                // Restore shared ingredients
+                reconcileGroceries();
             }
         };
 
