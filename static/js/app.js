@@ -33,6 +33,7 @@ createApp({
         // Settings
         const globalSettings = ref({});
         const showSettingsModal = ref(false);
+        const showHelpModal = ref(false);
 
         // Sync State
         const syncStatus = ref('saved'); // 'saved', 'syncing', 'error'
@@ -1156,7 +1157,9 @@ createApp({
             retryLoadingIngredients, loadingIngredientsFor,
             dayContainer, canScrollLeft, canScrollRight, checkScroll, scrollDays,
             globalSettings, showSettingsModal, openSettings, clearLocalData, resetEvent,
-            toggleVote
+            toggleVote,
+            showHelpModal
         };
     }
 }).mount('#app');
+

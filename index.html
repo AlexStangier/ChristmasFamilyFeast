@@ -87,6 +87,12 @@
                     <span class="font-bold bg-white text-xmas-red px-2 py-0.5 rounded shadow-sm">{{ currentUser
                         }}</span>
                 </div>
+                <!-- Help Button -->
+                <button @click="showHelpModal = true"
+                    class="bg-white/20 hover:bg-white/30 text-white p-2 rounded-full transition-colors"
+                    title="Anleitung">
+                    <i class="ph-bold ph-question text-xl"></i>
+                </button>
                 <!-- Burger Menu (Only for Organizer) -->
                 <button v-if="currentUser === 'Organisator'" @click="openSettings"
                     class="bg-white/20 hover:bg-white/30 text-white p-2 rounded-full transition-colors"
@@ -133,532 +139,600 @@
             </div>
         </div>
 
-        <!-- Copy Mode Banner -->
-        <div v-if="isCopyMode" class="fixed bottom-8 left-1/2 -translate-x-1/2 z-50 animate-fade-in">
-            <div
-                class="bg-xmas-dark text-white p-4 rounded-full shadow-2xl flex items-center gap-4 border-2 border-xmas-gold">
-                <div class="flex flex-col">
-                    <span class="font-bold text-sm">Kopiermodus aktiv</span>
-                    <span class="text-xs opacity-75">Wähle Tage für "{{ duplicateSource?.proposal.name }}"</span>
+    </div>
+
+    <!-- Help Modal -->
+    <div v-if="showHelpModal"
+        class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm"
+        @click.self="showHelpModal = false">
+        <div class="snow-card w-full max-w-2xl p-6 relative max-h-[90vh] overflow-y-auto">
+            <button @click="showHelpModal = false" class="absolute top-4 right-4 text-gray-400 hover:text-gray-600">
+                <i class="ph-bold ph-x text-xl"></i>
+            </button>
+
+            <h3 class="font-festive text-3xl text-xmas-red mb-6 flex items-center gap-2">
+                <i class="ph-fill ph-question text-xmas-gold"></i> So funktioniert's
+            </h3>
+
+            <div class="space-y-6 text-gray-700">
+
+                <section>
+                    <h4 class="font-bold text-lg text-xmas-green mb-2 flex items-center gap-2">
+                        <i class="ph-bold ph-users"></i> 1. Rollen & Anmeldung
+                    </h4>
+                    <p class="text-sm leading-relaxed">
+                        Jeder meldet sich mit seiner Rolle an (z.B. <strong>Eltern</strong>, <strong>Hamburg</strong>,
+                        <strong>Konstanz</strong>).
+                        Alle haben die gleichen Rechte: Jeder kann Gerichte vorschlagen und abstimmen.
+                    </p>
+                </section>
+
+                <section>
+                    <h4 class="font-bold text-lg text-xmas-green mb-2 flex items-center gap-2">
+                        <i class="ph-bold ph-lightbulb"></i> 2. Vorschläge machen
+                    </h4>
+                    <p class="text-sm leading-relaxed">
+                        Klicke auf <strong>"Vorschlagen"</strong> an einem beliebigen Tag. Du kannst nach Gerichten
+                        suchen (KI-gestützt) oder eigene Ideen eintragen.
+                        Die KI sucht automatisch nach passenden Rezepten und Zutaten.
+                    </p>
+                </section>
+
+                <section>
+                    <h4 class="font-bold text-lg text-xmas-green mb-2 flex items-center gap-2">
+                        <i class="ph-bold ph-heart"></i> 3. Demokratische Abstimmung
+                    </h4>
+                    <p class="text-sm leading-relaxed">
+                        Klicke auf <strong>"Wählen"</strong>, um für ein Gericht zu stimmen.
+                        Sobald ein Gericht die <strong>Mehrheit (3 Stimmen)</strong> erreicht, wird es automatisch als
+                        "Genehmigt" markiert.
+                        <br>
+                        <span class="text-xs text-gray-500 italic">Hinweis: Wenn ein anderes Gericht später mehr Stimmen
+                            erhält, wird der Plan automatisch aktualisiert!</span>
+                    </p>
+                </section>
+
+                <section>
+                    <h4 class="font-bold text-lg text-xmas-green mb-2 flex items-center gap-2">
+                        <i class="ph-bold ph-basket"></i> 4. Automatische Einkaufsliste
+                    </h4>
+                    <p class="text-sm leading-relaxed">
+                        Sobald ein Gericht genehmigt ist, landen die Zutaten automatisch auf der
+                        <strong>Einkaufsliste</strong>.
+                        Wir achten darauf, dass keine Zutaten verloren gehen, auch wenn Pläne geändert werden.
+                    </p>
+                </section>
+
+                <div class="bg-xmas-gold/10 p-4 rounded-lg border border-xmas-gold/30 text-sm">
+                    <strong>Tipp:</strong> Du kannst nur deine <em>eigenen</em> Vorschläge löschen. Das verhindert
+                    Chaos! 😉
                 </div>
-                <button @click="stopCopyMode"
-                    class="bg-white text-xmas-dark px-4 py-2 rounded-full font-bold hover:bg-gray-200 transition-colors">
-                    Fertig
+
+            </div>
+        </div>
+    </div>
+
+    <!-- Copy Mode Banner -->
+    <div v-if="isCopyMode" class="fixed bottom-8 left-1/2 -translate-x-1/2 z-50 animate-fade-in">
+        <div
+            class="bg-xmas-dark text-white p-4 rounded-full shadow-2xl flex items-center gap-4 border-2 border-xmas-gold">
+            <div class="flex flex-col">
+                <span class="font-bold text-sm">Kopiermodus aktiv</span>
+                <span class="text-xs opacity-75">Wähle Tage für "{{ duplicateSource?.proposal.name }}"</span>
+            </div>
+            <button @click="stopCopyMode"
+                class="bg-white text-xmas-dark px-4 py-2 rounded-full font-bold hover:bg-gray-200 transition-colors">
+                Fertig
+            </button>
+        </div>
+    </div>
+
+    <!-- Role Selection (Login) -->
+    <div v-if="!currentUser"
+        class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm">
+        <div class="snow-card w-full max-w-md p-8 text-center border-2 border-xmas-green relative overflow-hidden">
+            <div class="absolute top-0 left-0 w-full h-4 bg-repeat-x"
+                style="background-image: repeating-linear-gradient(45deg, #D42426 0, #D42426 10px, #ffffff 10px, #ffffff 20px);">
+            </div>
+            <h2 class="text-3xl font-festive text-xmas-green mb-2 mt-4">Wer bist du?</h2>
+            <p class="text-gray-600 mb-6">Wähle deine Rolle, um zu beginnen.</p>
+            <div class="grid grid-cols-2 gap-3">
+                <button v-for="role in roles" :key="role" @click="login(role)"
+                    class="p-4 rounded-lg border-2 border-dashed border-xmas-gold hover:border-xmas-red hover:bg-red-50 transition-all group flex flex-col items-center gap-2">
+                    <i class="ph-fill text-3xl"
+                        :class="getRoleIcon(role) + ' text-xmas-green group-hover:text-xmas-red'"></i>
+                    <span class="font-bold text-gray-700">{{ role }}</span>
                 </button>
             </div>
         </div>
+    </div>
 
-        <!-- Role Selection (Login) -->
-        <div v-if="!currentUser"
-            class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm">
-            <div class="snow-card w-full max-w-md p-8 text-center border-2 border-xmas-green relative overflow-hidden">
-                <div class="absolute top-0 left-0 w-full h-4 bg-repeat-x"
-                    style="background-image: repeating-linear-gradient(45deg, #D42426 0, #D42426 10px, #ffffff 10px, #ffffff 20px);">
-                </div>
-                <h2 class="text-3xl font-festive text-xmas-green mb-2 mt-4">Wer bist du?</h2>
-                <p class="text-gray-600 mb-6">Wähle deine Rolle, um zu beginnen.</p>
-                <div class="grid grid-cols-2 gap-3">
-                    <button v-for="role in roles" :key="role" @click="login(role)"
-                        class="p-4 rounded-lg border-2 border-dashed border-xmas-gold hover:border-xmas-red hover:bg-red-50 transition-all group flex flex-col items-center gap-2">
-                        <i class="ph-fill text-3xl"
-                            :class="getRoleIcon(role) + ' text-xmas-green group-hover:text-xmas-red'"></i>
-                        <span class="font-bold text-gray-700">{{ role }}</span>
-                    </button>
-                </div>
+    <!-- Main Planner Board -->
+    <main v-else class="w-full max-w-7xl flex flex-col gap-6">
+
+        <!-- Legend -->
+        <div
+            class="flex flex-wrap gap-4 items-center justify-center text-sm text-gray-700 bg-white/80 p-3 rounded-full shadow-sm w-fit mx-auto backdrop-blur">
+            <div class="flex items-center gap-1.5"><span class="w-3 h-3 rounded-full bg-xmas-green"></span>
+                Genehmigt
             </div>
+            <div class="flex items-center gap-1.5"><span class="w-3 h-3 rounded-full bg-xmas-gold"></span> Favorit
+            </div>
+            <div class="flex items-center gap-1.5"><span class="w-3 h-3 rounded-full bg-gray-300"></span> Vorschlag
+            </div>
+
         </div>
 
-        <!-- Main Planner Board -->
-        <main v-else class="w-full max-w-7xl flex flex-col gap-6">
+        <!-- Scrollable Grid Container -->
+        <div class="relative group w-full">
 
-            <!-- Legend -->
-            <div
-                class="flex flex-wrap gap-4 items-center justify-center text-sm text-gray-700 bg-white/80 p-3 rounded-full shadow-sm w-fit mx-auto backdrop-blur">
-                <div class="flex items-center gap-1.5"><span class="w-3 h-3 rounded-full bg-xmas-green"></span>
-                    Genehmigt
-                </div>
-                <div class="flex items-center gap-1.5"><span class="w-3 h-3 rounded-full bg-xmas-gold"></span> Favorit
-                </div>
-                <div class="flex items-center gap-1.5"><span class="w-3 h-3 rounded-full bg-gray-300"></span> Vorschlag
-                </div>
+            <!-- Left Nav Button -->
+            <button @click="scrollDays(-1)"
+                class="fixed left-2 sm:left-4 top-1/2 -translate-y-1/2 z-40 bg-white text-xmas-red w-10 h-10 flex items-center justify-center rounded-full shadow-lg border border-gray-100 transition-all duration-300 hover:scale-110 hover:bg-red-50"
+                :class="canScrollLeft ? 'opacity-100 translate-x-0' : 'opacity-0 -translate-x-4 pointer-events-none'">
+                <i class="ph-bold ph-caret-left text-xl"></i>
+            </button>
 
-            </div>
+            <!-- Grid -->
+            <div ref="dayContainer" @scroll="checkScroll"
+                class="overflow-x-auto hide-scroll pb-6 scroll-smooth snap-x snap-mandatory">
 
-            <!-- Scrollable Grid Container -->
-            <div class="relative group w-full">
+                <div class="flex gap-4 min-w-max px-2">
+                    <!-- Day Column -->
+                    <div v-for="day in days" :key="day.date" class="w-72 sm:w-80 flex flex-col gap-3 snap-center">
+                        <div class="snow-card p-3 text-center border-t-4 border-xmas-red sticky top-0 z-10">
+                            <h3 class="font-festive text-2xl text-gray-800">{{ formatDate(day.date) }}</h3>
+                            <p class="text-xs text-gray-500 uppercase tracking-widest">{{ day.name }}</p>
+                        </div>
 
-                <!-- Left Nav Button -->
-                <button @click="scrollDays(-1)"
-                    class="fixed left-2 sm:left-4 top-1/2 -translate-y-1/2 z-40 bg-white text-xmas-red w-10 h-10 flex items-center justify-center rounded-full shadow-lg border border-gray-100 transition-all duration-300 hover:scale-110 hover:bg-red-50"
-                    :class="canScrollLeft ? 'opacity-100 translate-x-0' : 'opacity-0 -translate-x-4 pointer-events-none'">
-                    <i class="ph-bold ph-caret-left text-xl"></i>
-                </button>
+                        <div v-for="(type, index) in mealTypes" :key="type" class="flex flex-col h-full">
+                            <div
+                                class="snow-card p-4 flex flex-col gap-3 relative min-h-[160px] h-full transition-all hover:shadow-md overflow-hidden overflow-y-auto max-h-[400px]">
 
-                <!-- Grid -->
-                <div ref="dayContainer" @scroll="checkScroll"
-                    class="overflow-x-auto hide-scroll pb-6 scroll-smooth snap-x snap-mandatory">
-
-                    <div class="flex gap-4 min-w-max px-2">
-                        <!-- Day Column -->
-                        <div v-for="day in days" :key="day.date" class="w-72 sm:w-80 flex flex-col gap-3 snap-center">
-                            <div class="snow-card p-3 text-center border-t-4 border-xmas-red sticky top-0 z-10">
-                                <h3 class="font-festive text-2xl text-gray-800">{{ formatDate(day.date) }}</h3>
-                                <p class="text-xs text-gray-500 uppercase tracking-widest">{{ day.name }}</p>
-                            </div>
-
-                            <div v-for="(type, index) in mealTypes" :key="type" class="flex flex-col h-full">
-                                <div
-                                    class="snow-card p-4 flex flex-col gap-3 relative min-h-[160px] h-full transition-all hover:shadow-md overflow-hidden overflow-y-auto max-h-[400px]">
-
-                                    <!-- Copy Mode Overlay -->
-                                    <div v-if="isCopyMode" @click.stop="handleSlotCopyClick(day.date, type)"
-                                        class="absolute inset-0 z-50 flex items-center justify-center transition-all duration-300"
-                                        :class="isTargetSlot(day.date, type) 
+                                <!-- Copy Mode Overlay -->
+                                <div v-if="isCopyMode" @click.stop="handleSlotCopyClick(day.date, type)"
+                                    class="absolute inset-0 z-50 flex items-center justify-center transition-all duration-300"
+                                    :class="isTargetSlot(day.date, type) 
                                             ? 'bg-xmas-green/10 cursor-pointer hover:bg-xmas-green/20 ring-4 ring-inset ring-xmas-gold animate-pulse' 
                                             : 'bg-gray-100/80 backdrop-blur-[1px] cursor-not-allowed'">
 
-                                        <div v-if="isTargetSlot(day.date, type)"
-                                            class="bg-white text-xmas-green font-bold px-4 py-2 rounded-full shadow-lg transform hover:scale-110 transition-transform flex items-center gap-2">
-                                            <i class="ph-bold ph-copy-simple"></i>
-                                            <span>Hier einfügen</span>
-                                        </div>
+                                    <div v-if="isTargetSlot(day.date, type)"
+                                        class="bg-white text-xmas-green font-bold px-4 py-2 rounded-full shadow-lg transform hover:scale-110 transition-transform flex items-center gap-2">
+                                        <i class="ph-bold ph-copy-simple"></i>
+                                        <span>Hier einfügen</span>
                                     </div>
+                                </div>
 
-                                    <!-- Slot Header -->
-                                    <div class="flex justify-between items-center border-b border-gray-100 pb-2">
-                                        <span class="text-xs font-bold text-gray-400 uppercase">{{ type }}</span>
-                                        <i v-if="isSignatureDish(day.date, type)"
-                                            class="ph-fill ph-lock-key text-xmas-gold" title="Tradition!"></i>
-                                    </div>
+                                <!-- Slot Header -->
+                                <div class="flex justify-between items-center border-b border-gray-100 pb-2">
+                                    <span class="text-xs font-bold text-gray-400 uppercase">{{ type }}</span>
+                                    <i v-if="isSignatureDish(day.date, type)" class="ph-fill ph-lock-key text-xmas-gold"
+                                        title="Tradition!"></i>
+                                </div>
 
-                                    <!-- Signature Dish -->
-                                    <div v-if="isSignatureDish(day.date, type)"
-                                        class="flex-1 flex flex-col items-center justify-center text-center p-2 bg-xmas-red/5 rounded-lg border border-xmas-red/20">
-                                        <i class="ph-fill ph-cooking-pot text-3xl text-xmas-red mb-2"></i>
-                                        <h4 class="font-festive text-xl text-xmas-dark">Traditionsgericht</h4>
-                                        <p class="text-sm font-medium text-gray-700">Königsberger Klopse</p>
-                                    </div>
+                                <!-- Signature Dish -->
+                                <div v-if="isSignatureDish(day.date, type)"
+                                    class="flex-1 flex flex-col items-center justify-center text-center p-2 bg-xmas-red/5 rounded-lg border border-xmas-red/20">
+                                    <i class="ph-fill ph-cooking-pot text-3xl text-xmas-red mb-2"></i>
+                                    <h4 class="font-festive text-xl text-xmas-dark">Traditionsgericht</h4>
+                                    <p class="text-sm font-medium text-gray-700">Königsberger Klopse</p>
+                                </div>
 
-                                    <!-- Proposals -->
-                                    <div v-else class="flex flex-col gap-3 flex-1">
-                                        <div v-if="getProposals(day.date, type).length > 0" class="flex flex-col gap-2">
-                                            <div v-for="prop in getProposals(day.date, type)" :key="prop.id"
-                                                class="p-2 rounded border transition-colors relative group"
-                                                :class="getProposalClass(prop, day.date, type)">
+                                <!-- Proposals -->
+                                <div v-else class="flex flex-col gap-3 flex-1">
+                                    <div v-if="getProposals(day.date, type).length > 0" class="flex flex-col gap-2">
+                                        <div v-for="prop in getProposals(day.date, type)" :key="prop.id"
+                                            class="p-2 rounded border transition-colors relative group"
+                                            :class="getProposalClass(prop, day.date, type)">
 
-                                                <i v-if="isLeading(prop, day.date, type)"
-                                                    class="ph-fill ph-crown-simple absolute -top-2 -right-2 text-xmas-gold text-xl drop-shadow-sm bg-white rounded-full p-0.5 z-10"></i>
-                                                <div v-if="isLeading(prop, day.date, type)"
-                                                    class="absolute -top-2 -right-2 bg-xmas-gold text-white text-[10px] font-bold px-1.5 rounded-full z-20 shadow-sm border border-white">
-                                                    #1</div>
+                                            <i v-if="isLeading(prop, day.date, type)"
+                                                class="ph-fill ph-crown-simple absolute -top-2 -right-2 text-xmas-gold text-xl drop-shadow-sm bg-white rounded-full p-0.5 z-10"></i>
+                                            <div v-if="isLeading(prop, day.date, type)"
+                                                class="absolute -top-2 -right-2 bg-xmas-gold text-white text-[10px] font-bold px-1.5 rounded-full z-20 shadow-sm border border-white">
+                                                #1</div>
 
-                                                <div class="flex justify-between items-start">
-                                                    <div class="flex-1">
-                                                        <p class="font-bold text-gray-800 leading-tight">{{ prop.name }}
-                                                        </p>
-                                                        <p class="text-xs text-gray-500 mt-0.5">von {{ prop.proposer }}
-                                                        </p>
-                                                        <button v-if="prop.recipeUrl || prop.ingredients"
-                                                            @click.stop="openRecipeModal(prop)"
-                                                            class="text-xs text-xmas-red hover:underline flex items-center gap-1 mt-1">
-                                                            <i class="ph-bold ph-book-open"></i> Rezept ansehen
-                                                        </button>
-                                                    </div>
-                                                    <div class="flex flex-col items-end gap-1">
-                                                        <div class="text-center min-w-[30px]">
-                                                            <span class="text-sm font-bold block"
-                                                                :class="hasVotedFor(prop) ? 'text-xmas-red' : 'text-gray-400'">{{
-                                                                (prop.votes || []).length }}</span>
-                                                        </div>
-                                                        <button v-if="currentUser === prop.proposer"
-                                                            @click="deleteProposal(day.date, type, prop.id)"
-                                                            class="opacity-0 group-hover:opacity-100 transition-opacity text-gray-400 hover:text-red-500 p-1"
-                                                            title="Löschen">
-                                                            <i class="ph-bold ph-trash text-sm"></i>
-                                                        </button>
-                                                        <button v-if="!slotIsApproved(day.date, type)"
-                                                            @click="startCopyMode(day.date, type, prop)"
-                                                            class="opacity-0 group-hover:opacity-100 transition-opacity text-gray-400 hover:text-xmas-gold p-1"
-                                                            title="Zu anderen Tagen kopieren">
-                                                            <i class="ph-bold ph-copy text-sm"></i>
-                                                        </button>
-                                                    </div>
-                                                </div>
-
-                                                <div class="flex gap-1 mt-2">
-                                                    <button @click="toggleVote(day.date, type, prop)"
-                                                        class="flex-1 text-xs py-1 rounded flex items-center justify-center gap-1 transition-colors"
-                                                        :class="hasVotedFor(prop) ? 'bg-xmas-red text-white' : 'bg-gray-100 hover:bg-gray-200 text-gray-600'">
-                                                        <i class="ph"
-                                                            :class="hasVotedFor(prop) ? 'ph-heart-fill' : 'ph-heart'"></i>
-                                                        {{ hasVotedFor(prop) ? 'Gewählt' : 'Wählen' }}
+                                            <div class="flex justify-between items-start">
+                                                <div class="flex-1">
+                                                    <p class="font-bold text-gray-800 leading-tight">{{ prop.name }}
+                                                    </p>
+                                                    <p class="text-xs text-gray-500 mt-0.5">von {{ prop.proposer }}
+                                                    </p>
+                                                    <button v-if="prop.recipeUrl || prop.ingredients"
+                                                        @click.stop="openRecipeModal(prop)"
+                                                        class="text-xs text-xmas-red hover:underline flex items-center gap-1 mt-1">
+                                                        <i class="ph-bold ph-book-open"></i> Rezept ansehen
                                                     </button>
-                                                    <button v-if="!prop.recipeUrl && !prop.isLoadingRecipe"
-                                                        @click.stop="findRecipe(day.date, type, prop)"
-                                                        class="px-2 bg-xmas-gold/10 text-xmas-gold hover:bg-xmas-gold/20 rounded transition-colors"
-                                                        title="Rezept suchen">
-                                                        <i class="ph-bold ph-magic-wand"></i>
-                                                    </button>
-                                                    <div v-if="prop.isLoadingRecipe"
-                                                        class="px-2 flex items-center justify-center text-xmas-gold">
-                                                        <i class="ph-bold ph-spinner animate-spin"></i>
-                                                    </div>
                                                 </div>
-
-                                                <button
-                                                    v-if="currentUser === 'Organisator' && !slotIsApproved(day.date, type)"
-                                                    @click="approveDish(day.date, type, prop)"
-                                                    class="w-full mt-1 text-xs py-1 bg-xmas-green text-white rounded hover:bg-green-800 transition-colors flex items-center justify-center gap-1">
-                                                    <i class="ph-bold ph-check"></i> Genehmigen
-                                                </button>
+                                                <div class="flex flex-col items-end gap-1">
+                                                    <div class="text-center min-w-[30px]">
+                                                        <span class="text-sm font-bold block"
+                                                            :class="hasVotedFor(prop) ? 'text-xmas-red' : 'text-gray-400'">{{
+                                                            (prop.votes || []).length }}</span>
+                                                    </div>
+                                                    <button v-if="currentUser === prop.proposer"
+                                                        @click="deleteProposal(day.date, type, prop.id)"
+                                                        class="opacity-0 group-hover:opacity-100 transition-opacity text-gray-400 hover:text-red-500 p-1"
+                                                        title="Löschen">
+                                                        <i class="ph-bold ph-trash text-sm"></i>
+                                                    </button>
+                                                    <button v-if="!slotIsApproved(day.date, type)"
+                                                        @click="startCopyMode(day.date, type, prop)"
+                                                        class="opacity-0 group-hover:opacity-100 transition-opacity text-gray-400 hover:text-xmas-gold p-1"
+                                                        title="Zu anderen Tagen kopieren">
+                                                        <i class="ph-bold ph-copy text-sm"></i>
+                                                    </button>
+                                                </div>
                                             </div>
-                                        </div>
 
-                                        <div v-else
-                                            class="flex-1 flex items-center justify-center text-center opacity-40">
-                                            <p class="text-xs italic">Noch keine Pläne.</p>
-                                        </div>
+                                            <div class="flex gap-1 mt-2">
+                                                <button @click="toggleVote(day.date, type, prop)"
+                                                    class="flex-1 text-xs py-1 rounded flex items-center justify-center gap-1 transition-colors"
+                                                    :class="hasVotedFor(prop) ? 'bg-xmas-red text-white' : 'bg-gray-100 hover:bg-gray-200 text-gray-600'">
+                                                    <i class="ph"
+                                                        :class="hasVotedFor(prop) ? 'ph-heart-fill' : 'ph-heart'"></i>
+                                                    {{ hasVotedFor(prop) ? 'Gewählt' : 'Wählen' }}
+                                                </button>
+                                                <button v-if="!prop.recipeUrl && !prop.isLoadingRecipe"
+                                                    @click.stop="findRecipe(day.date, type, prop)"
+                                                    class="px-2 bg-xmas-gold/10 text-xmas-gold hover:bg-xmas-gold/20 rounded transition-colors"
+                                                    title="Rezept suchen">
+                                                    <i class="ph-bold ph-magic-wand"></i>
+                                                </button>
+                                                <div v-if="prop.isLoadingRecipe"
+                                                    class="px-2 flex items-center justify-center text-xmas-gold">
+                                                    <i class="ph-bold ph-spinner animate-spin"></i>
+                                                </div>
+                                            </div>
 
-                                        <button @click="openProposalModal(day.date, type)"
-                                            class="mt-auto w-full py-2 border-2 border-dashed border-gray-200 rounded-lg text-gray-400 text-sm hover:border-xmas-green hover:text-xmas-green transition-all flex items-center justify-center gap-1">
-                                            <i class="ph-bold ph-plus"></i> Vorschlagen
-                                        </button>
+                                            <button
+                                                v-if="currentUser === 'Organisator' && !slotIsApproved(day.date, type)"
+                                                @click="approveDish(day.date, type, prop)"
+                                                class="w-full mt-1 text-xs py-1 bg-xmas-green text-white rounded hover:bg-green-800 transition-colors flex items-center justify-center gap-1">
+                                                <i class="ph-bold ph-check"></i> Genehmigen
+                                            </button>
+                                        </div>
                                     </div>
 
+                                    <div v-else class="flex-1 flex items-center justify-center text-center opacity-40">
+                                        <p class="text-xs italic">Noch keine Pläne.</p>
+                                    </div>
+
+                                    <button @click="openProposalModal(day.date, type)"
+                                        class="mt-auto w-full py-2 border-2 border-dashed border-gray-200 rounded-lg text-gray-400 text-sm hover:border-xmas-green hover:text-xmas-green transition-all flex items-center justify-center gap-1">
+                                        <i class="ph-bold ph-plus"></i> Vorschlagen
+                                    </button>
                                 </div>
-                                <div v-if="index < mealTypes.length - 1" class="border-t border-gray-200 mt-4 pt-4">
-                                </div>
+
                             </div>
-
-
+                            <div v-if="index < mealTypes.length - 1" class="border-t border-gray-200 mt-4 pt-4">
+                            </div>
                         </div>
 
-                    </div>
-                </div>
 
-                <!-- Right Nav Button -->
-                <button @click="scrollDays(1)"
-                    class="fixed right-2 sm:right-4 top-1/2 -translate-y-1/2 z-40 bg-white text-xmas-red w-10 h-10 flex items-center justify-center rounded-full shadow-lg border border-gray-100 transition-all duration-300 hover:scale-110 hover:bg-red-50"
-                    :class="canScrollRight ? 'opacity-100 translate-x-0' : 'opacity-0 translate-x-4 pointer-events-none'">
-                    <i class="ph-bold ph-caret-right text-xl"></i>
-                </button>
+                    </div>
+
+                </div>
             </div>
 
-        </main>
+            <!-- Right Nav Button -->
+            <button @click="scrollDays(1)"
+                class="fixed right-2 sm:right-4 top-1/2 -translate-y-1/2 z-40 bg-white text-xmas-red w-10 h-10 flex items-center justify-center rounded-full shadow-lg border border-gray-100 transition-all duration-300 hover:scale-110 hover:bg-red-50"
+                :class="canScrollRight ? 'opacity-100 translate-x-0' : 'opacity-0 translate-x-4 pointer-events-none'">
+                <i class="ph-bold ph-caret-right text-xl"></i>
+            </button>
+        </div>
 
-        <!-- Grocery List Section -->
-        <section v-if="groceryList.length > 0" class="w-full max-w-7xl mt-8 mb-8">
-            <div class="snow-card p-6 border-t-4 border-xmas-gold">
-                <div class="flex items-center justify-between mb-4">
-                    <div class="flex items-center gap-3">
-                        <i class="ph-fill ph-basket text-3xl text-xmas-gold"></i>
-                        <h2 class="font-festive text-3xl text-gray-800">Einkaufsliste</h2>
-                    </div>
-                    <button @click="openExportModal"
-                        class="text-sm bg-gray-100 hover:bg-gray-200 text-gray-600 px-3 py-1.5 rounded-lg transition-colors flex items-center gap-2">
-                        <i class="ph-bold ph-export"></i> Exportieren
-                    </button>
+    </main>
+
+    <!-- Grocery List Section -->
+    <section v-if="groceryList.length > 0" class="w-full max-w-7xl mt-8 mb-8">
+        <div class="snow-card p-6 border-t-4 border-xmas-gold">
+            <div class="flex items-center justify-between mb-4">
+                <div class="flex items-center gap-3">
+                    <i class="ph-fill ph-basket text-3xl text-xmas-gold"></i>
+                    <h2 class="font-festive text-3xl text-gray-800">Einkaufsliste</h2>
                 </div>
-                <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
-                    <div v-for="(item, index) in mergedGroceryList" :key="index"
-                        class="flex items-center gap-2 p-2 bg-white rounded border border-gray-100 shadow-sm"
-                        :class="{'border-xmas-gold/50 bg-yellow-50': item.isPlaceholder}">
-                        <input type="checkbox"
-                            class="w-4 h-4 text-xmas-green rounded focus:ring-xmas-green accent-xmas-green shrink-0">
-
-                        <span class="flex-1 text-gray-700 text-sm break-words">{{ item.text }}</span>
-
-                        <button v-if="item.isPlaceholder" @click="retryLoadingIngredients(item)"
-                            class="text-xmas-gold hover:text-xmas-dark transition-colors p-1" title="Zutaten laden"
-                            :disabled="loadingIngredientsFor === item.proposalId">
-                            <i class="ph-bold"
-                                :class="loadingIngredientsFor === item.proposalId ? 'ph-spinner animate-spin' : 'ph-arrow-clockwise'"></i>
-                        </button>
-                    </div>
-                    <!-- Add new item -->
-                    <div
-                        class="flex items-center gap-2 p-2 bg-gray-50 rounded border-2 border-dashed border-gray-200 hover:border-xmas-green transition-colors">
-                        <i class="ph-bold ph-plus text-gray-400 shrink-0"></i>
-                        <input v-model="newGroceryItem" @keyup.enter="addGroceryItem" placeholder="Neues Element..."
-                            class="flex-1 text-sm bg-transparent outline-none text-gray-700 placeholder-gray-400">
-                        <button v-if="newGroceryItem.trim()" @click="addGroceryItem"
-                            class="text-xmas-green hover:text-green-700 transition-colors p-1" title="Hinzufügen">
-                            <i class="ph-bold ph-check"></i>
-                        </button>
-                    </div>
-                </div>
-            </div>
-        </section>
-
-        <!-- Proposal Modal -->
-        <div v-if="showProposalModal"
-            class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm"
-            @click.self="closeProposalModal">
-            <div class="snow-card w-full max-w-md p-6 relative">
-                <button @click="closeProposalModal" class="absolute top-4 right-4 text-gray-400 hover:text-gray-600">
-                    <i class="ph-bold ph-x text-xl"></i>
+                <button @click="openExportModal"
+                    class="text-sm bg-gray-100 hover:bg-gray-200 text-gray-600 px-3 py-1.5 rounded-lg transition-colors flex items-center gap-2">
+                    <i class="ph-bold ph-export"></i> Exportieren
                 </button>
+            </div>
+            <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
+                <div v-for="(item, index) in mergedGroceryList" :key="index"
+                    class="flex items-center gap-2 p-2 bg-white rounded border border-gray-100 shadow-sm"
+                    :class="{'border-xmas-gold/50 bg-yellow-50': item.isPlaceholder}">
+                    <input type="checkbox"
+                        class="w-4 h-4 text-xmas-green rounded focus:ring-xmas-green accent-xmas-green shrink-0">
 
-                <h3 class="font-festive text-2xl text-xmas-green mb-4">Gericht vorschlagen</h3>
+                    <span class="flex-1 text-gray-700 text-sm break-words">{{ item.text }}</span>
 
-                <!-- Search -->
-                <div class="mb-4 relative">
-                    <div
-                        class="flex items-center border border-gray-300 rounded-lg overflow-hidden focus-within:ring-2 focus-within:ring-xmas-gold">
-                        <input v-model="proposalSearchQuery" @input="debouncedSearch"
-                            placeholder="Was möchtest du essen? (z.B. Ente, Pasta...)"
-                            class="w-full p-3 outline-none text-gray-700">
-                        <div v-if="isSearching" class="pr-3 text-gray-400">
-                            <i class="ph-bold ph-spinner animate-spin"></i>
-                        </div>
-                    </div>
-
-                    <!-- Suggestions -->
-                    <div v-if="suggestions.length > 0"
-                        class="absolute top-full left-0 w-full bg-white border border-gray-200 rounded-lg shadow-lg mt-1 z-10 max-h-48 overflow-y-auto">
-                        <button v-for="sugg in suggestions" :key="sugg" @click="selectSuggestion(sugg)"
-                            class="w-full text-left p-2 hover:bg-gray-50 text-sm text-gray-700 border-b border-gray-50 last:border-0">
-                            {{ sugg }}
-                        </button>
-                    </div>
-                </div>
-
-                <!-- Custom Entry / Selected -->
-                <div v-if="proposalSearchQuery" class="flex flex-col gap-3">
-                    <button @click="submitProposalFromModal(proposalSearchQuery)"
-                        class="w-full bg-xmas-green text-white py-3 rounded-lg font-bold hover:bg-green-800 transition-colors flex items-center justify-center gap-2">
-                        <i class="ph-bold ph-plus-circle"></i> "{{ proposalSearchQuery }}" hinzufügen
+                    <button v-if="item.isPlaceholder" @click="retryLoadingIngredients(item)"
+                        class="text-xmas-gold hover:text-xmas-dark transition-colors p-1" title="Zutaten laden"
+                        :disabled="loadingIngredientsFor === item.proposalId">
+                        <i class="ph-bold"
+                            :class="loadingIngredientsFor === item.proposalId ? 'ph-spinner animate-spin' : 'ph-arrow-clockwise'"></i>
                     </button>
                 </div>
-
-                <!-- Preview Section -->
-                <div v-if="previewData" class="mt-6 border-t border-gray-200 pt-4">
-                    <h4 class="font-bold text-gray-800 mb-3 flex items-center gap-2">
-                        <i class="ph-fill ph-eye text-xmas-gold"></i> Vorschau
-                    </h4>
-                    <div class="grid md:grid-cols-2 gap-4">
-                        <!-- Ingredients Preview -->
-                        <div class="bg-gray-50 p-3 rounded-lg">
-                            <h5 class="text-sm font-semibold text-gray-700 mb-2">Zutaten</h5>
-                            <ul class="space-y-1">
-                                <li v-for="(ing, i) in (previewData.ingredients || []).slice(0, 5)" :key="i"
-                                    class="text-xs text-gray-600 flex items-start gap-1">
-                                    <span class="w-1 h-1 rounded-full bg-xmas-green mt-1.5 shrink-0"></span>
-                                    {{ ing }}
-                                </li>
-                                <li v-if="(previewData.ingredients || []).length > 5"
-                                    class="text-xs text-gray-400 italic">+
-                                    {{ previewData.ingredients.length - 5 }}
-                                    weitere...</li>
-                            </ul>
-                        </div>
-
-                        <!-- Instructions Preview -->
-                        <div class="bg-gray-50 p-3 rounded-lg">
-                            <h5 class="text-sm font-semibold text-gray-700 mb-2">Zubereitung</h5>
-                            <ol class="space-y-1">
-                                <li v-for="(step, i) in (previewData.instructions || []).slice(0, 3)" :key="i"
-                                    class="text-xs text-gray-600 flex gap-2">
-                                    <span class="font-bold text-xmas-gold shrink-0">{{ i + 1 }}.</span>
-                                    <span class="line-clamp-2">{{ step }}</span>
-                                </li>
-                                <li v-if="(previewData.instructions || []).length > 3"
-                                    class="text-xs text-gray-400 italic pl-4">+ {{ previewData.instructions.length - 3
-                                    }} weitere Schritte...</li>
-                            </ol>
-                        </div>
-                    </div>
-                    <div v-if="previewData.url" class="mt-3">
-                        <a :href="previewData.url" target="_blank"
-                            class="text-xs text-xmas-red hover:underline flex items-center gap-1">
-                            <i class="ph-bold ph-link"></i> Originalrezept ansehen
-                        </a>
-                    </div>
-                </div>
-
-                <div v-if="isLoadingPreview"
-                    class="mt-6 border-t border-gray-200 pt-4 flex items-center justify-center gap-2 text-gray-500">
-                    <i class="ph-bold ph-spinner animate-spin"></i>
-                    <span class="text-sm">Lade Vorschau...</span>
+                <!-- Add new item -->
+                <div
+                    class="flex items-center gap-2 p-2 bg-gray-50 rounded border-2 border-dashed border-gray-200 hover:border-xmas-green transition-colors">
+                    <i class="ph-bold ph-plus text-gray-400 shrink-0"></i>
+                    <input v-model="newGroceryItem" @keyup.enter="addGroceryItem" placeholder="Neues Element..."
+                        class="flex-1 text-sm bg-transparent outline-none text-gray-700 placeholder-gray-400">
+                    <button v-if="newGroceryItem.trim()" @click="addGroceryItem"
+                        class="text-xmas-green hover:text-green-700 transition-colors p-1" title="Hinzufügen">
+                        <i class="ph-bold ph-check"></i>
+                    </button>
                 </div>
             </div>
         </div>
+    </section>
 
-        <!-- Recipe Modal -->
-        <div v-if="selectedRecipeProp"
-            class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm"
-            @click.self="closeRecipeModal">
-            <div class="snow-card w-full max-w-2xl p-0 relative flex flex-col max-h-[90vh]">
-                <!-- Header -->
-                <div class="p-6 border-b border-gray-100 flex justify-between items-start bg-gray-50 rounded-t-xl">
-                    <div>
-                        <h3 class="font-festive text-3xl text-xmas-red">{{ selectedRecipeProp.name }}</h3>
-                        <p class="text-sm text-gray-500">Vorgeschlagen von {{ selectedRecipeProp.proposer }}</p>
-                    </div>
-                    <button @click="closeRecipeModal" class="text-gray-400 hover:text-gray-600">
-                        <i class="ph-bold ph-x text-xl"></i>
-                    </button>
-                </div>
-
-                <!-- Content -->
-                <div class="p-6 overflow-y-auto hide-scroll">
-                    <div class="grid md:grid-cols-2 gap-8">
-                        <!-- Ingredients -->
-                        <div>
-                            <h4 class="font-bold text-gray-800 mb-3 flex items-center gap-2">
-                                <i class="ph-fill ph-basket text-xmas-gold"></i> Zutaten
-                            </h4>
-                            <ul class="space-y-2">
-                                <li v-for="(ing, i) in (selectedRecipeProp.ingredients || [])" :key="i"
-                                    class="flex items-start gap-2 text-sm text-gray-600">
-                                    <span class="w-1.5 h-1.5 rounded-full bg-xmas-green mt-1.5 shrink-0"></span>
-                                    {{ ing }}
-                                </li>
-                                <li v-if="!selectedRecipeProp.ingredients" class="text-sm text-gray-400 italic">Keine
-                                    Zutaten geladen.</li>
-                            </ul>
-                        </div>
-
-                        <!-- Instructions -->
-                        <div>
-                            <h4 class="font-bold text-gray-800 mb-3 flex items-center gap-2">
-                                <i class="ph-fill ph-cooking-pot text-xmas-red"></i> Zubereitung
-                            </h4>
-                            <ol class="space-y-3">
-                                <li v-for="(step, i) in (selectedRecipeProp.instructions || [])" :key="i"
-                                    class="flex gap-3 text-sm text-gray-600">
-                                    <span class="font-bold text-xmas-gold shrink-0">{{ i + 1 }}.</span>
-                                    {{ step }}
-                                </li>
-                                <li v-if="!selectedRecipeProp.instructions" class="text-sm text-gray-400 italic">Keine
-                                    Anleitung verfügbar.</li>
-                            </ol>
-                        </div>
-                    </div>
-
-                    <div class="mt-8 flex flex-wrap gap-3">
-                        <a v-if="selectedRecipeProp.recipeUrl" :href="selectedRecipeProp.recipeUrl" target="_blank"
-                            class="bg-gray-100 hover:bg-gray-200 text-gray-700 px-4 py-2 rounded-lg text-sm font-medium transition-colors flex items-center gap-2">
-                            <i class="ph-bold ph-link"></i> Originalrezept öffnen
-                        </a>
-
-                        <button v-if="currentUser === selectedRecipeProp.proposer && !selectedRecipeProp.approved"
-                            @click="withdrawProposal(selectedRecipeProp)"
-                            class="ml-auto text-red-500 hover:bg-red-50 px-4 py-2 rounded-lg text-sm font-medium transition-colors flex items-center gap-2 border border-red-200">
-                            <i class="ph-bold ph-trash"></i> Vorschlag zurückziehen
-                        </button>
-                    </div>
-                </div>
-            </div>
-        </div>
-
-        <!-- Recipe Modal -->
-
-        <!-- Export Modal -->
-        <div v-if="showExportModal"
-            class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm"
-            @click.self="showExportModal = false">
-            <div class="snow-card w-full max-w-md p-6 relative">
-                <button @click="showExportModal = false"
-                    class="absolute top-4 right-4 text-gray-400 hover:text-gray-600">
-                    <i class="ph-bold ph-x text-xl"></i>
-                </button>
-
-                <h3 class="font-festive text-2xl text-xmas-green mb-4">Einkaufsliste Export</h3>
-
-                <div v-if="isExporting"
-                    class="absolute inset-0 z-10 bg-white/50 backdrop-blur-sm flex items-center justify-center rounded-xl">
-                    <div class="flex flex-col items-center gap-2">
-                        <i class="ph-bold ph-spinner animate-spin text-3xl text-xmas-gold"></i>
-                        <span class="text-sm text-gray-600 font-bold">Sortiere & Kategorisiere...</span>
-                    </div>
-                </div>
-
-                <textarea readonly
-                    class="w-full h-64 p-3 border border-gray-200 rounded-lg text-sm font-mono text-gray-700 focus:outline-none focus:border-xmas-gold bg-gray-50 resize-none"
-                    :value="exportText" @click="$event.target.select()"></textarea>
-
-                <p class="text-xs text-gray-400 mt-2 text-center">Text kopieren und teilen!</p>
-            </div>
-        </div>
-
-        <!-- Activity Log Tab -->
-        <div class="fixed bottom-0 right-4 z-50">
-            <!-- Collapsed Tab -->
-            <button v-if="!showActivityLog" @click="showActivityLog = true"
-                class="snow-card px-4 py-2 rounded-t-lg shadow-lg flex items-center gap-2 hover:bg-gray-50 transition-colors">
-                <i class="ph-bold ph-chats-circle text-xmas-gold"></i>
-                <span class="font-semibold text-gray-700">Aktivitäten</span>
-                <span v-if="activityLog.length > 0" class="bg-xmas-red text-white text-xs px-2 py-0.5 rounded-full">{{
-                    activityLog.length }}</span>
+    <!-- Proposal Modal -->
+    <div v-if="showProposalModal"
+        class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm"
+        @click.self="closeProposalModal">
+        <div class="snow-card w-full max-w-md p-6 relative">
+            <button @click="closeProposalModal" class="absolute top-4 right-4 text-gray-400 hover:text-gray-600">
+                <i class="ph-bold ph-x text-xl"></i>
             </button>
 
-            <!-- Expanded Log -->
-            <div v-if="showActivityLog"
-                class="snow-card w-96 h-96 flex flex-col shadow-2xl rounded-t-lg overflow-hidden">
-                <!-- Header -->
+            <h3 class="font-festive text-2xl text-xmas-green mb-4">Gericht vorschlagen</h3>
+
+            <!-- Search -->
+            <div class="mb-4 relative">
                 <div
-                    class="bg-gradient-to-r from-xmas-green to-green-700 text-white p-3 flex justify-between items-center">
-                    <div class="flex items-center gap-2">
-                        <i class="ph-fill ph-chats-circle text-xl"></i>
-                        <h3 class="font-bold">Aktivitätsprotokoll</h3>
+                    class="flex items-center border border-gray-300 rounded-lg overflow-hidden focus-within:ring-2 focus-within:ring-xmas-gold">
+                    <input v-model="proposalSearchQuery" @input="debouncedSearch"
+                        placeholder="Was möchtest du essen? (z.B. Ente, Pasta...)"
+                        class="w-full p-3 outline-none text-gray-700">
+                    <div v-if="isSearching" class="pr-3 text-gray-400">
+                        <i class="ph-bold ph-spinner animate-spin"></i>
                     </div>
-                    <button @click="showActivityLog = false" class="hover:bg-white/20 rounded p-1 transition-colors">
-                        <i class="ph-bold ph-x"></i>
-                    </button>
                 </div>
 
-                <!-- Log Messages -->
-                <div class="flex-1 overflow-y-auto p-3 space-y-2 bg-gray-50">
-                    <div v-for="(log, index) in activityLog.slice().reverse()" :key="index"
-                        class="bg-white rounded-lg p-3 shadow-sm border-l-4" :class="{
+                <!-- Suggestions -->
+                <div v-if="suggestions.length > 0"
+                    class="absolute top-full left-0 w-full bg-white border border-gray-200 rounded-lg shadow-lg mt-1 z-10 max-h-48 overflow-y-auto">
+                    <button v-for="sugg in suggestions" :key="sugg" @click="selectSuggestion(sugg)"
+                        class="w-full text-left p-2 hover:bg-gray-50 text-sm text-gray-700 border-b border-gray-50 last:border-0">
+                        {{ sugg }}
+                    </button>
+                </div>
+            </div>
+
+            <!-- Custom Entry / Selected -->
+            <div v-if="proposalSearchQuery" class="flex flex-col gap-3">
+                <button @click="submitProposalFromModal(proposalSearchQuery)"
+                    class="w-full bg-xmas-green text-white py-3 rounded-lg font-bold hover:bg-green-800 transition-colors flex items-center justify-center gap-2">
+                    <i class="ph-bold ph-plus-circle"></i> "{{ proposalSearchQuery }}" hinzufügen
+                </button>
+            </div>
+
+            <!-- Preview Section -->
+            <div v-if="previewData" class="mt-6 border-t border-gray-200 pt-4">
+                <h4 class="font-bold text-gray-800 mb-3 flex items-center gap-2">
+                    <i class="ph-fill ph-eye text-xmas-gold"></i> Vorschau
+                </h4>
+                <div class="grid md:grid-cols-2 gap-4">
+                    <!-- Ingredients Preview -->
+                    <div class="bg-gray-50 p-3 rounded-lg">
+                        <h5 class="text-sm font-semibold text-gray-700 mb-2">Zutaten</h5>
+                        <ul class="space-y-1">
+                            <li v-for="(ing, i) in (previewData.ingredients || []).slice(0, 5)" :key="i"
+                                class="text-xs text-gray-600 flex items-start gap-1">
+                                <span class="w-1 h-1 rounded-full bg-xmas-green mt-1.5 shrink-0"></span>
+                                {{ ing }}
+                            </li>
+                            <li v-if="(previewData.ingredients || []).length > 5" class="text-xs text-gray-400 italic">+
+                                {{ previewData.ingredients.length - 5 }}
+                                weitere...</li>
+                        </ul>
+                    </div>
+
+                    <!-- Instructions Preview -->
+                    <div class="bg-gray-50 p-3 rounded-lg">
+                        <h5 class="text-sm font-semibold text-gray-700 mb-2">Zubereitung</h5>
+                        <ol class="space-y-1">
+                            <li v-for="(step, i) in (previewData.instructions || []).slice(0, 3)" :key="i"
+                                class="text-xs text-gray-600 flex gap-2">
+                                <span class="font-bold text-xmas-gold shrink-0">{{ i + 1 }}.</span>
+                                <span class="line-clamp-2">{{ step }}</span>
+                            </li>
+                            <li v-if="(previewData.instructions || []).length > 3"
+                                class="text-xs text-gray-400 italic pl-4">+ {{ previewData.instructions.length - 3
+                                }} weitere Schritte...</li>
+                        </ol>
+                    </div>
+                </div>
+                <div v-if="previewData.url" class="mt-3">
+                    <a :href="previewData.url" target="_blank"
+                        class="text-xs text-xmas-red hover:underline flex items-center gap-1">
+                        <i class="ph-bold ph-link"></i> Originalrezept ansehen
+                    </a>
+                </div>
+            </div>
+
+            <div v-if="isLoadingPreview"
+                class="mt-6 border-t border-gray-200 pt-4 flex items-center justify-center gap-2 text-gray-500">
+                <i class="ph-bold ph-spinner animate-spin"></i>
+                <span class="text-sm">Lade Vorschau...</span>
+            </div>
+        </div>
+    </div>
+
+    <!-- Recipe Modal -->
+    <div v-if="selectedRecipeProp"
+        class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm"
+        @click.self="closeRecipeModal">
+        <div class="snow-card w-full max-w-2xl p-0 relative flex flex-col max-h-[90vh]">
+            <!-- Header -->
+            <div class="p-6 border-b border-gray-100 flex justify-between items-start bg-gray-50 rounded-t-xl">
+                <div>
+                    <h3 class="font-festive text-3xl text-xmas-red">{{ selectedRecipeProp.name }}</h3>
+                    <p class="text-sm text-gray-500">Vorgeschlagen von {{ selectedRecipeProp.proposer }}</p>
+                </div>
+                <button @click="closeRecipeModal" class="text-gray-400 hover:text-gray-600">
+                    <i class="ph-bold ph-x text-xl"></i>
+                </button>
+            </div>
+
+            <!-- Content -->
+            <div class="p-6 overflow-y-auto hide-scroll">
+                <div class="grid md:grid-cols-2 gap-8">
+                    <!-- Ingredients -->
+                    <div>
+                        <h4 class="font-bold text-gray-800 mb-3 flex items-center gap-2">
+                            <i class="ph-fill ph-basket text-xmas-gold"></i> Zutaten
+                        </h4>
+                        <ul class="space-y-2">
+                            <li v-for="(ing, i) in (selectedRecipeProp.ingredients || [])" :key="i"
+                                class="flex items-start gap-2 text-sm text-gray-600">
+                                <span class="w-1.5 h-1.5 rounded-full bg-xmas-green mt-1.5 shrink-0"></span>
+                                {{ ing }}
+                            </li>
+                            <li v-if="!selectedRecipeProp.ingredients" class="text-sm text-gray-400 italic">Keine
+                                Zutaten geladen.</li>
+                        </ul>
+                    </div>
+
+                    <!-- Instructions -->
+                    <div>
+                        <h4 class="font-bold text-gray-800 mb-3 flex items-center gap-2">
+                            <i class="ph-fill ph-cooking-pot text-xmas-red"></i> Zubereitung
+                        </h4>
+                        <ol class="space-y-3">
+                            <li v-for="(step, i) in (selectedRecipeProp.instructions || [])" :key="i"
+                                class="flex gap-3 text-sm text-gray-600">
+                                <span class="font-bold text-xmas-gold shrink-0">{{ i + 1 }}.</span>
+                                {{ step }}
+                            </li>
+                            <li v-if="!selectedRecipeProp.instructions" class="text-sm text-gray-400 italic">Keine
+                                Anleitung verfügbar.</li>
+                        </ol>
+                    </div>
+                </div>
+
+                <div class="mt-8 flex flex-wrap gap-3">
+                    <a v-if="selectedRecipeProp.recipeUrl" :href="selectedRecipeProp.recipeUrl" target="_blank"
+                        class="bg-gray-100 hover:bg-gray-200 text-gray-700 px-4 py-2 rounded-lg text-sm font-medium transition-colors flex items-center gap-2">
+                        <i class="ph-bold ph-link"></i> Originalrezept öffnen
+                    </a>
+
+                    <button v-if="currentUser === selectedRecipeProp.proposer && !selectedRecipeProp.approved"
+                        @click="withdrawProposal(selectedRecipeProp)"
+                        class="ml-auto text-red-500 hover:bg-red-50 px-4 py-2 rounded-lg text-sm font-medium transition-colors flex items-center gap-2 border border-red-200">
+                        <i class="ph-bold ph-trash"></i> Vorschlag zurückziehen
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Recipe Modal -->
+
+    <!-- Export Modal -->
+    <div v-if="showExportModal"
+        class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm"
+        @click.self="showExportModal = false">
+        <div class="snow-card w-full max-w-md p-6 relative">
+            <button @click="showExportModal = false" class="absolute top-4 right-4 text-gray-400 hover:text-gray-600">
+                <i class="ph-bold ph-x text-xl"></i>
+            </button>
+
+            <h3 class="font-festive text-2xl text-xmas-green mb-4">Einkaufsliste Export</h3>
+
+            <div v-if="isExporting"
+                class="absolute inset-0 z-10 bg-white/50 backdrop-blur-sm flex items-center justify-center rounded-xl">
+                <div class="flex flex-col items-center gap-2">
+                    <i class="ph-bold ph-spinner animate-spin text-3xl text-xmas-gold"></i>
+                    <span class="text-sm text-gray-600 font-bold">Sortiere & Kategorisiere...</span>
+                </div>
+            </div>
+
+            <textarea readonly
+                class="w-full h-64 p-3 border border-gray-200 rounded-lg text-sm font-mono text-gray-700 focus:outline-none focus:border-xmas-gold bg-gray-50 resize-none"
+                :value="exportText" @click="$event.target.select()"></textarea>
+
+            <p class="text-xs text-gray-400 mt-2 text-center">Text kopieren und teilen!</p>
+        </div>
+    </div>
+
+    <!-- Activity Log Tab -->
+    <div class="fixed bottom-0 right-4 z-50">
+        <!-- Collapsed Tab -->
+        <button v-if="!showActivityLog" @click="showActivityLog = true"
+            class="snow-card px-4 py-2 rounded-t-lg shadow-lg flex items-center gap-2 hover:bg-gray-50 transition-colors">
+            <i class="ph-bold ph-chats-circle text-xmas-gold"></i>
+            <span class="font-semibold text-gray-700">Aktivitäten</span>
+            <span v-if="activityLog.length > 0" class="bg-xmas-red text-white text-xs px-2 py-0.5 rounded-full">{{
+                activityLog.length }}</span>
+        </button>
+
+        <!-- Expanded Log -->
+        <div v-if="showActivityLog" class="snow-card w-96 h-96 flex flex-col shadow-2xl rounded-t-lg overflow-hidden">
+            <!-- Header -->
+            <div class="bg-gradient-to-r from-xmas-green to-green-700 text-white p-3 flex justify-between items-center">
+                <div class="flex items-center gap-2">
+                    <i class="ph-fill ph-chats-circle text-xl"></i>
+                    <h3 class="font-bold">Aktivitätsprotokoll</h3>
+                </div>
+                <button @click="showActivityLog = false" class="hover:bg-white/20 rounded p-1 transition-colors">
+                    <i class="ph-bold ph-x"></i>
+                </button>
+            </div>
+
+            <!-- Log Messages -->
+            <div class="flex-1 overflow-y-auto p-3 space-y-2 bg-gray-50">
+                <div v-for="(log, index) in activityLog.slice().reverse()" :key="index"
+                    class="bg-white rounded-lg p-3 shadow-sm border-l-4" :class="{
                             'border-xmas-green': log.type === 'add',
                             'border-xmas-gold': log.type === 'edit',
                             'border-xmas-red': log.type === 'delete',
                             'border-blue-500': log.type === 'vote',
                             'border-purple-500': log.type === 'approve'
                         }">
-                        <div class="flex items-start gap-2">
-                            <div class="shrink-0 w-8 h-8 rounded-full bg-gray-100 flex items-center justify-center text-xs font-bold"
-                                :class="{
+                    <div class="flex items-start gap-2">
+                        <div class="shrink-0 w-8 h-8 rounded-full bg-gray-100 flex items-center justify-center text-xs font-bold"
+                            :class="{
                                     'bg-xmas-green/10 text-xmas-green': log.user === 'Organisator',
                                     'bg-blue-100 text-blue-600': log.user === 'Eltern',
                                     'bg-purple-100 text-purple-600': log.user === 'Hamburg',
                                     'bg-orange-100 text-orange-600': log.user === 'Konstanz'
                                 }">
-                                {{ log.user.substring(0, 2).toUpperCase() }}
+                            {{ log.user.substring(0, 2).toUpperCase() }}
+                        </div>
+                        <div class="flex-1 min-w-0">
+                            <div class="flex items-center gap-2 mb-1">
+                                <span class="font-semibold text-sm text-gray-800">{{ log.user }}</span>
+                                <span class="text-xs text-gray-400">{{ formatLogTime(log.timestamp) }}</span>
                             </div>
-                            <div class="flex-1 min-w-0">
-                                <div class="flex items-center gap-2 mb-1">
-                                    <span class="font-semibold text-sm text-gray-800">{{ log.user }}</span>
-                                    <span class="text-xs text-gray-400">{{ formatLogTime(log.timestamp) }}</span>
-                                </div>
-                                <p class="text-sm text-gray-600">{{ log.message }}</p>
-                            </div>
+                            <p class="text-sm text-gray-600">{{ log.message }}</p>
                         </div>
                     </div>
-                    <div v-if="activityLog.length === 0" class="text-center text-gray-400 py-8">
-                        <i class="ph-bold ph-chat-centered-dots text-4xl mb-2"></i>
-                        <p class="text-sm">Noch keine Aktivitäten</p>
-                    </div>
+                </div>
+                <div v-if="activityLog.length === 0" class="text-center text-gray-400 py-8">
+                    <i class="ph-bold ph-chat-centered-dots text-4xl mb-2"></i>
+                    <p class="text-sm">Noch keine Aktivitäten</p>
                 </div>
             </div>
         </div>
+    </div>
 
-        <!-- Sync Footer -->
-        <footer class="mt-auto py-6 w-full max-w-7xl flex justify-between items-center text-sm font-festive text-xl">
-            <div class="flex items-center gap-2 text-gray-500">
-                <div class="w-2 h-2 rounded-full" :class="{
+    <!-- Sync Footer -->
+    <footer class="mt-auto py-6 w-full max-w-7xl flex justify-between items-center text-sm font-festive text-xl">
+        <div class="flex items-center gap-2 text-gray-500">
+            <div class="w-2 h-2 rounded-full" :class="{
                     'bg-green-500': syncStatus === 'saved',
                     'bg-yellow-400 animate-pulse': syncStatus === 'syncing',
                     'bg-red-500': syncStatus === 'error'
                 }"></div>
-                <span class="font-sans text-xs uppercase tracking-wider font-bold">
-                    {{ syncMessage }}
-                </span>
-            </div>
-            <p class="text-xmas-dark/50">Gemacht mit 🎄 für die Familie</p>
-        </footer>
+            <span class="font-sans text-xs uppercase tracking-wider font-bold">
+                {{ syncMessage }}
+            </span>
+        </div>
+        <p class="text-xmas-dark/50">Gemacht mit 🎄 für die Familie</p>
+    </footer>
 
     </div>
 
