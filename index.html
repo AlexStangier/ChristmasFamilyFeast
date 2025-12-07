@@ -378,13 +378,31 @@
                                                     <button v-if="!prop.recipeUrl && !prop.isLoadingRecipe"
                                                         @click.stop="findRecipe(day.date, type, prop)"
                                                         class="px-2 bg-xmas-gold/10 text-xmas-gold hover:bg-xmas-gold/20 rounded transition-colors"
-                                                        title="Rezept suchen">
+                                                        title="Rezept suchen (KI)">
                                                         <i class="ph-bold ph-magic-wand"></i>
+                                                    </button>
+                                                    <button v-if="!prop.recipeUrl && !prop.isLoadingRecipe"
+                                                        @click.stop="prop.showUrlInput = !prop.showUrlInput"
+                                                        class="px-2 bg-gray-100 text-gray-500 hover:bg-gray-200 rounded transition-colors"
+                                                        title="Link manuell hinzufügen">
+                                                        <i class="ph-bold ph-link"></i>
                                                     </button>
                                                     <div v-if="prop.isLoadingRecipe"
                                                         class="px-2 flex items-center justify-center text-xmas-gold">
                                                         <i class="ph-bold ph-spinner animate-spin"></i>
                                                     </div>
+                                                </div>
+
+                                                <!-- Manual URL Input -->
+                                                <div v-if="prop.showUrlInput" class="mt-2 flex gap-1 animate-fade-in">
+                                                    <input type="url" v-model="prop.manualUrl"
+                                                        placeholder="https://chefkoch.de/..."
+                                                        class="flex-1 text-xs p-1 border border-gray-200 rounded focus:border-xmas-gold outline-none"
+                                                        @click.stop>
+                                                    <button @click.stop="parseRecipeUrl(prop, prop.manualUrl)"
+                                                        class="bg-xmas-gold text-white px-2 rounded text-xs font-bold hover:bg-yellow-600">
+                                                        OK
+                                                    </button>
                                                 </div>
 
                                                 <button

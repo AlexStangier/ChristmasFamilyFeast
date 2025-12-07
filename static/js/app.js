@@ -698,6 +698,17 @@ createApp({
 
         // Update findRecipe to handle instructions
         const findRecipe = async (date, type, proposal) => {
+            // 1. Check for "Leftovers" keywords
+            const lowerName = proposal.name.toLowerCase();
+            const leftoversKeywords = ['reste', 'rest', 'aufwärmen', 'kühlschrank', 'leftover'];
+            if (leftoversKeywords.some(kw => lowerName.includes(kw))) {
+                console.log("Skipping recipe search for leftovers");
+                proposal.ingredients = [];
+                proposal.instructions = ["Reste genießen!"];
+                proposal.recipeUrl = null;
+                return;
+            }
+
             proposal.isLoadingRecipe = true;
             try {
                 const res = await fetch('/api/ai/recipe', {
@@ -714,6 +725,39 @@ createApp({
                 // Don't alert, just fail silently in background
             } finally {
                 proposal.isLoadingRecipe = false;
+            }
+        };
+
+        const parseRecipeUrl = async (proposal, url) => {
+            if (!url) return;
+            proposal.isLoadingRecipe = true;
+            try {
+                const res = await fetch('/api/ai/parse_url', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ url: url })
+                });
+                if (!res.ok) throw new Error('Parse failed');
+
+                const data = await res.json();
+                if (data.url) proposal.recipeUrl = data.url;
+                if (data.ingredients) proposal.ingredients = data.ingredients;
+                if (data.instructions) proposal.instructions = data.instructions;
+
+                // If this proposal is already approved, we need to update the grocery list!
+                // But usually this happens before approval. If it IS approved, we should trigger a grocery update.
+                if (proposal.approved) {
+                    // This is complex. For now, let's assume users do this BEFORE approving or re-approve.
+                    // But to be safe, we can just call reconcileGroceries if we modify an approved proposal.
+                    reconcileGroceries();
+                }
+
+            } catch (e) {
+                console.error("URL Parse failed", e);
+                alert("Konnte URL nicht verarbeiten. Ist sie öffentlich erreichbar?");
+            } finally {
+                proposal.isLoadingRecipe = false;
+                proposal.showUrlInput = false; // Close input on success/fail
             }
         };
 
@@ -1158,7 +1202,8 @@ createApp({
             dayContainer, canScrollLeft, canScrollRight, checkScroll, scrollDays,
             globalSettings, showSettingsModal, openSettings, clearLocalData, resetEvent,
             toggleVote,
-            showHelpModal
+            showHelpModal,
+            parseRecipeUrl
         };
     }
 }).mount('#app');

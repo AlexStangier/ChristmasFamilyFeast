@@ -1,6 +1,7 @@
 import os
 import json
 import urllib.parse
+import urllib.request
 from flask import Flask, request, jsonify, send_from_directory
 from google.cloud import storage
 import logging
@@ -367,6 +368,58 @@ def categorize_groceries():
         logging.error(f"AI Categorize Error: {e}")
         # Return proper error response instead of 500 crash
         return jsonify({"error": "Failed to categorize", "details": str(e)}), 500
+
+@app.route('/api/ai/parse_url', methods=['POST'])
+def parse_recipe_url():
+    """Fetches URL content and uses Gemini to parse recipe."""
+    data = request.json
+    url = data.get('url')
+    if not url:
+        return jsonify({"error": "No URL provided"}), 400
+
+    try:
+        # 1. Fetch URL content
+        # User-Agent is often needed to avoid 403s from sites like Chefkoch
+        req = urllib.request.Request(
+            url, 
+            data=None, 
+            headers={
+                'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_9_3) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/35.0.1916.47 Safari/537.36'
+            }
+        )
+        with urllib.request.urlopen(req) as f:
+            html_content = f.read().decode('utf-8')
+
+        # 2. Parse with Gemini
+        model = GenerativeModel("gemini-2.5-flash")
+        # Truncate HTML to avoid token limits if it's huge (e.g. 100k chars is usually safe for Gemini 1.5/2.0)
+        html_snippet = html_content[:100000] 
+        
+        prompt = f"""
+        Extract recipe details from the following HTML content.
+        1. List of ingredients (translated to German, calculated for 10 people).
+        2. Cooking instructions (summary in German).
+        
+        HTML Content:
+        {html_snippet}
+        
+        Return ONLY valid JSON:
+        {{
+            "ingredients": ["..."],
+            "instructions": ["..."]
+        }}
+        """
+        
+        response = model.generate_content(prompt)
+        text = response.text.replace('```json', '').replace('```', '').strip()
+        result = json.loads(text)
+        result['url'] = url # Echo back the URL
+        
+        return jsonify(result)
+
+    except Exception as e:
+        logging.error(f"URL Parse Error: {e}")
+        return jsonify({"error": "Failed to parse URL", "details": str(e)}), 500
 
 if __name__ == "__main__":
     # Cloud Run injects the PORT environment variable
