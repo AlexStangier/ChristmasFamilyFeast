@@ -137,6 +137,10 @@ createApp({
                         const combinedVotes = new Set([...(lProp.votes || []), ...(sProp.votes || [])]);
                         lProp.votes = Array.from(combinedVotes);
 
+                        // 1b. Chefs: Union of chefs
+                        const combinedChefs = new Set([...(lProp.chefs || []), ...(sProp.chefs || [])]);
+                        lProp.chefs = Array.from(combinedChefs);
+
                         // 2. AI Data: If server has it and local doesn't (or server is newer?), take server.
                         // We prefer server for heavy data to avoid re-fetching.
                         if (sProp.recipeUrl && !lProp.recipeUrl) lProp.recipeUrl = sProp.recipeUrl;
@@ -398,7 +402,8 @@ createApp({
                 id: crypto.randomUUID(),
                 name: newProposalText.value.trim(),
                 proposer: currentUser.value,
-                votes: [currentUser.value]
+                votes: [currentUser.value],
+                chefs: []
             });
 
             logActivity('add', `hat "${newProposalText.value.trim()}" für ${type} am ${formatDate(date)} vorgeschlagen`);
@@ -449,6 +454,19 @@ createApp({
                     console.log(`New Democratic Winner: ${leader.name} with ${maxVotes} votes`);
                     await approveDish(date, type, leader);
                 }
+            }
+        };
+
+        const toggleChef = (proposal, role) => {
+            if (!currentUser.value) return;
+            if (!proposal.chefs) proposal.chefs = [];
+
+            if (proposal.chefs.includes(role)) {
+                proposal.chefs = proposal.chefs.filter(c => c !== role);
+                logActivity('edit', `hat ${role} als Koch für "${proposal.name}" entfernt`);
+            } else {
+                proposal.chefs.push(role);
+                logActivity('edit', `hat ${role} als Koch für "${proposal.name}" eingetragen`);
             }
         };
 
@@ -1203,7 +1221,8 @@ createApp({
             globalSettings, showSettingsModal, openSettings, clearLocalData, resetEvent,
             toggleVote,
             showHelpModal,
-            parseRecipeUrl
+            parseRecipeUrl,
+            toggleChef
         };
     }
 }).mount('#app');

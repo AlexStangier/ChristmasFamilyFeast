@@ -375,6 +375,36 @@
                                                             :class="hasVotedFor(prop) ? 'ph-heart-fill' : 'ph-heart'"></i>
                                                         {{ hasVotedFor(prop) ? 'Gewählt' : 'Wählen' }}
                                                     </button>
+
+                                                    <!-- Chef Assignment -->
+                                                    <div class="relative group/chefs">
+                                                        <button
+                                                            class="px-2 bg-gray-100 text-gray-500 hover:bg-gray-200 rounded transition-colors h-full"
+                                                            title="Koch zuweisen">
+                                                            <i class="ph-bold ph-chef-hat"></i>
+                                                        </button>
+                                                        <!-- Dropdown/Popup for Chefs -->
+                                                        <div
+                                                            class="absolute bottom-full right-0 mb-1 bg-white border border-gray-200 rounded-lg shadow-xl p-2 hidden group-hover/chefs:flex gap-1 z-50 min-w-max">
+                                                            <button v-for="role in roles" :key="role"
+                                                                @click.stop="toggleChef(prop, role)"
+                                                                class="w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold border-2 transition-all"
+                                                                :class="(prop.chefs || []).includes(role) ? 'border-xmas-green bg-xmas-green text-white' : 'border-gray-200 text-gray-400 hover:border-gray-300'"
+                                                                :title="role">
+                                                                {{ role.substring(0, 2).toUpperCase() }}
+                                                            </button>
+                                                        </div>
+                                                    </div>
+
+                                                    <!-- Display Assigned Chefs (Small Icons) -->
+                                                    <div v-if="(prop.chefs || []).length > 0"
+                                                        class="flex -space-x-1 items-center ml-1">
+                                                        <div v-for="chef in prop.chefs" :key="chef"
+                                                            class="w-5 h-5 rounded-full bg-xmas-green text-white text-[8px] flex items-center justify-center border border-white font-bold"
+                                                            :title="chef + ' kocht'">
+                                                            {{ chef.substring(0, 1) }}
+                                                        </div>
+                                                    </div>
                                                     <button v-if="!prop.recipeUrl && !prop.isLoadingRecipe"
                                                         @click.stop="findRecipe(day.date, type, prop)"
                                                         class="px-2 bg-xmas-gold/10 text-xmas-gold hover:bg-xmas-gold/20 rounded transition-colors"
