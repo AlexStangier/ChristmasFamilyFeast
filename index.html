@@ -388,14 +388,36 @@
                                                         <div
                                                             class="absolute bottom-full right-0 pb-2 hidden group-hover/chefs:block z-50 min-w-max">
                                                             <div
-                                                                class="bg-white border border-gray-200 rounded-lg shadow-xl p-2 flex gap-1">
-                                                                <button v-for="role in roles" :key="role"
-                                                                    @click.stop="toggleChef(prop, role)"
-                                                                    class="w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold border-2 transition-all"
-                                                                    :class="(prop.chefs || []).includes(role) ? 'border-xmas-green bg-xmas-green text-white' : 'border-gray-200 text-gray-400 hover:border-gray-300'"
-                                                                    :title="role">
-                                                                    {{ role.substring(0, 2).toUpperCase() }}
-                                                                </button>
+                                                                class="bg-white border border-gray-200 rounded-lg shadow-xl p-2 flex flex-col gap-2 max-w-[240px]">
+                                                                <div class="flex flex-wrap gap-1">
+                                                                    <button v-for="role in roles" :key="role"
+                                                                        @click.stop="toggleChef(prop, role)"
+                                                                        class="w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold border-2 transition-all shrink-0"
+                                                                        :class="(prop.chefs || []).includes(role) ? 'border-xmas-green bg-xmas-green text-white' : 'border-gray-200 text-gray-400 hover:border-gray-300'"
+                                                                        :title="role">
+                                                                        {{ role.substring(0, 2).toUpperCase() }}
+                                                                    </button>
+                                                                    <!-- Custom Chefs -->
+                                                                    <button
+                                                                        v-for="chef in (prop.chefs || []).filter(c => !roles.includes(c))"
+                                                                        :key="chef" @click.stop="toggleChef(prop, chef)"
+                                                                        class="w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold border-2 border-xmas-green bg-xmas-green text-white transition-all shrink-0"
+                                                                        :title="chef + ' entfernen'">
+                                                                        {{ chef.substring(0, 2).toUpperCase() }}
+                                                                    </button>
+                                                                </div>
+                                                                <!-- Add Custom -->
+                                                                <div
+                                                                    class="flex gap-1 border-t border-gray-100 pt-2 w-full">
+                                                                    <input @click.stop v-model="prop.newChefName"
+                                                                        @keyup.enter="addCustomChef(prop)"
+                                                                        placeholder="Name..."
+                                                                        class="flex-1 text-xs p-1 border border-gray-200 rounded outline-none focus:border-xmas-gold min-w-0">
+                                                                    <button @click.stop="addCustomChef(prop)"
+                                                                        class="bg-gray-100 hover:bg-xmas-gold hover:text-white px-2 rounded text-xs transition-colors shrink-0">
+                                                                        <i class="ph-bold ph-plus"></i>
+                                                                    </button>
+                                                                </div>
                                                             </div>
                                                         </div>
                                                     </div>

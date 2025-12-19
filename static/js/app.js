@@ -470,6 +470,14 @@ createApp({
             }
         };
 
+        const addCustomChef = (proposal) => {
+            const name = (proposal.newChefName || "").trim();
+            if (!name || !currentUser.value) return;
+
+            toggleChef(proposal, name);
+            proposal.newChefName = ""; // Reset input
+        };
+
         const approveDish = async (date, type, proposal) => {
             const key = getSlotKey(date, type);
             if (!mealSlots.value[key]) return;
@@ -1222,6 +1230,7 @@ createApp({
             toggleVote,
             showHelpModal,
             parseRecipeUrl,
+            addCustomChef,
             toggleChef
         };
     }
