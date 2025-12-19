@@ -517,12 +517,16 @@
                 </div>
                 <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
                     <div v-for="(item, index) in mergedGroceryList" :key="index"
-                        class="flex items-center gap-2 p-2 bg-white rounded border border-gray-100 shadow-sm"
-                        :class="{'border-xmas-gold/50 bg-yellow-50': item.isPlaceholder}">
-                        <input type="checkbox"
-                            class="w-4 h-4 text-xmas-green rounded focus:ring-xmas-green accent-xmas-green shrink-0">
+                        class="flex items-center gap-2 p-2 bg-white rounded border border-gray-100 shadow-sm transition-colors"
+                        :class="[
+                            item.isPlaceholder ? 'border-xmas-gold/50 bg-yellow-50' : '',
+                            item.checked ? 'bg-gray-50 opacity-60' : ''
+                        ]">
+                        <input type="checkbox" :checked="item.checked" @change="toggleGroceryCheck(item)"
+                            class="w-4 h-4 text-xmas-green rounded focus:ring-xmas-green accent-xmas-green shrink-0 cursor-pointer">
 
-                        <span class="flex-1 text-gray-700 text-sm break-words">{{ item.text }}</span>
+                        <span class="flex-1 text-gray-700 text-sm break-words transition-all"
+                            :class="{ 'line-through text-gray-400': item.checked }">{{ item.text }}</span>
 
                         <button v-if="item.isPlaceholder" @click="retryLoadingIngredients(item)"
                             class="text-xmas-gold hover:text-xmas-dark transition-colors p-1" title="Zutaten laden"

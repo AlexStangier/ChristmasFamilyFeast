@@ -93,7 +93,10 @@ createApp({
                     mealSlots.value = serverSlots;
                     groceryList.value = serverGroceries;
                     activityLog.value = serverActivity;
+                    groceryList.value = serverGroceries;
+                    activityLog.value = serverActivity;
                     globalSettings.value = serverSettings;
+                    if (!globalSettings.value.checkedGroceries) globalSettings.value.checkedGroceries = [];
 
                     if (isFirstLoad.value) {
                         console.log("Initial data loaded");
@@ -239,7 +242,11 @@ createApp({
                     // 2. Smart Merge (Server -> Local)
                     performSmartMerge(mealSlots.value, serverData.slots || serverData);
                     performSmartMergeGroceries(groceryList.value, serverData.groceries || []);
-                    if (serverData.settings) globalSettings.value = serverData.settings;
+                    performSmartMergeGroceries(groceryList.value, serverData.groceries || []);
+                    if (serverData.settings) {
+                        globalSettings.value = serverData.settings;
+                        if (!globalSettings.value.checkedGroceries) globalSettings.value.checkedGroceries = [];
+                    }
 
                     // 3. Retry Save (Recursive)
                     return saveData(retryCount + 1);
@@ -1038,7 +1045,23 @@ createApp({
             });
 
             // Combine and Sort
-            return [...placeholders, ...ingredients].sort((a, b) => a.text.localeCompare(b.text));
+            // Combine and Sort
+            return [...placeholders, ...ingredients].sort((a, b) => a.text.localeCompare(b.text)).map(item => {
+                // Add checked state
+                // Generate a key (same as in loop, but we need it here for checked lookup)
+                const uniqueKey = item.isPlaceholder
+                    ? `placeholder|${item.proposalId}`
+                    : `${item.name.toLowerCase()}|${(item.unit || '').toLowerCase()}`;
+
+                // Add key to item for UI use
+                item.uniqueKey = uniqueKey;
+
+                // Check if in global settings
+                const checkedList = globalSettings.value.checkedGroceries || [];
+                item.checked = checkedList.includes(uniqueKey);
+
+                return item;
+            });
         };
 
         const mergedGroceryList = computed(() => getMergedItems());
@@ -1047,7 +1070,9 @@ createApp({
         const cachedExportData = ref(null); // { key: string, text: string }
 
         const openExportModal = async () => {
-            const items = getMergedItems();
+            // Filter out checked items for export
+            const allItems = getMergedItems();
+            const items = allItems.filter(i => !i.checked);
 
             const currentKey = JSON.stringify(items.map(i => ({
                 t: i.text,
@@ -1231,7 +1256,25 @@ createApp({
             showHelpModal,
             parseRecipeUrl,
             addCustomChef,
-            toggleChef
+            toggleChef,
+            toggleGroceryCheck: (item) => {
+                if (!item || !item.uniqueKey) return;
+
+                if (!globalSettings.value.checkedGroceries) globalSettings.value.checkedGroceries = [];
+                const list = globalSettings.value.checkedGroceries;
+
+                if (list.includes(item.uniqueKey)) {
+                    // Uncheck
+                    const idx = list.indexOf(item.uniqueKey);
+                    if (idx > -1) list.splice(idx, 1);
+                } else {
+                    // Check
+                    list.push(item.uniqueKey);
+                }
+
+                // Save immediately (debounced)
+                debouncedSave();
+            }
         };
     }
 }).mount('#app');
